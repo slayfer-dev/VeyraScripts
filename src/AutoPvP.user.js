@@ -1,11 +1,13 @@
 // ==UserScript==
-// @name         AutoPvP 2.0
+// @name         AutoPvP
 // @namespace    https://demonicscans.org/scripts/
-// @version      2.0
+// @version      2.1
+// @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js
+// @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js
 // @description  Automates PvP solo matches with premium UI, background tabs, history, and audio notifications.
 // @author       Slayfer
 // @match        https://demonicscans.org/pvp.php*
-// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/AntiThrottle.js
+// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/libs/AntiThrottle.js
 // @grant        GM.getValue
 // @grant        GM.setValue
 // ==/UserScript==
@@ -26,7 +28,7 @@
         '9':  { name: "Judgment Seal",  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Judgment Seal.webp" },
         // Hunter Skills
         '6':  { name: "Back Stab",  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Back Stab.webp" },
-        '7':  { name: "Killer Instinct",  cost: 5, type: "attack",  target: "enemy",      icon: "/images/skills/Killer Instinct.webp" },
+        '7':  { name: "Killer Instinct",  cost: 5, type: "support",  target: "enemy",      icon: "/images/skills/Killer Instinct.webp" },
     };
 
     // =========================================================================

@@ -1,11 +1,13 @@
 // ==UserScript==
-// @name         AutoFarm 2.0
+// @name         AutoFarm
 // @namespace    https://demonicscans.org/scripts/
 // @version      2.1
+// @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoFarm.user.js
+// @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoFarm.user.js
 // @description  Automates mob farming, batch looting, and potion management with premium UI, history tracking, and multi-tab safety.
 // @author       Slayfer
 // @match        *demonicscans.org/active_wave.php?gate=*&wave=*
-// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/AntiThrottle.js
+// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/libs/AntiThrottle.js
 // @grant        GM.getValue
 // @grant        GM.setValue
 // ==/UserScript==

@@ -1,11 +1,13 @@
 // ==UserScript==
-// @name         Veyra Castle Auto-Pilot 4 (Force Diagnostic)
+// @name         Veyra Castle Auto-Pilot(Force Diagnostic)
 // @namespace    http://tampermonkey.net/
-// @version      6.14
+// @version      2.1
+// @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js
+// @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js
 // @description  Auto-combat, auto-heal, auto-left-path, auto-enter. Added native Chrome console logging to diagnose button click failures.
 // @author       AI Assistant
 // @match        https://demonicscans.org/occurrence_castle.php?slug=vampire_castle*
-// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/AntiThrottle.js
+// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/libs/AntiThrottle.js
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
@@ -22,25 +24,24 @@
     let isWaiting = false;
     let uiOffsetX = 0;
     let uiOffsetY = 0;
-    const rarityValues = { "common": 1, "uncommon": 2, "rare": 3, "epic": 4, "legendary": 5, "boss": 6 };
     let powerPriorities = GM_getValue("user_priority_map", "{}"); try { powerPriorities = typeof powerPriorities === "string" ? JSON.parse(powerPriorities) : powerPriorities; } catch(e) { powerPriorities = {}; }
     const temp_25 = ["Vampiric Edge", "Raven Eye", "Iron Veil", "Execution Rhythm", "Blood Frenzy", "Frozen Blood", "Witchfire Core", "Mana Leech", "Ashen Wand", "Arcane Surge", "Serrated Vein", "Thorns of the Crypt", "Blood Alchemy", "Crimson Vitality", "Venom Script"],
         temp_26 = {
-            'Vampiric\x20Edge': "Vampiric Edge - Slash lifesteal +3% (Common) / +4% (Epic)",
-            'Raven\x20Eye': "Raven Eye - Slash crit chance +3% (Common) / +4% (Epic)",
-            'Iron\x20Veil': "Iron Veil - Defense +5% (Common) / +8% (Epic)",
-            'Execution\x20Rhythm': "Execution Rhythm - Next hit after kill +15% (Common) / +25% (Epic)",
-            'Blood\x20Frenzy': "Blood Frenzy - Attack/Magic per 20% missing HP +3% (Common) / +6% (Epic)",
-            'Frozen\x20Blood': "Frozen Blood - Magic attacks gain 1% freeze chance.",
-            'Witchfire\x20Core': "Witchfire Core - Burn damage increased by 10%.",
-            'Mana\x20Leech': "Mana Leech - Magic attacks heal for 2% damage dealt.",
-            'Ashen\x20Wand': "Ashen Wand - Magic attacks gain 3% burn chance.",
-            'Arcane\x20Surge': "Arcane Surge - Magic attacks gain +3% overcharge chance.",
-            'Serrated\x20Vein': "Serrated Vein - Slash gains 3% bleed chance.",
-            'Thorns\x20of\x20the\x20Crypt': "Thorns of the Crypt - Reflect 7% damage taken.",
-            'Blood\x20Alchemy': "Blood Alchemy - HP potions heal +25% more.",
-            'Crimson\x20Vitality': "Crimson Vitality - Gain +6% max HP (Common) / +10% max HP (Epic)",
-            'Venom\x20Script': "Venom Script - Slash gains 2% poison chance (Common) / 3.5% poison chance (Epic)"
+            'Vampiric\x20Edge': "Vampiric Edge - Slash lifesteal +3%",
+            'Raven\x20Eye': "Raven Eye - Slash crit chance +3%",
+            'Iron\x20Veil': "Iron Veil - Defense +5%",
+            'Execution\x20Rhythm': "Execution Rhythm - First hit +15%",
+            'Blood\x20Frenzy': "Blood Frenzy - Attack/Magic +3% per 20% missing HP",
+            'Frozen\x20Blood': "Frozen Blood - Magic attacks +1% freeze chance",
+            'Witchfire\x20Core': "Witchfire Core - Burn damage +10%",
+            'Mana\x20Leech': "Mana Leech - Magic attacks heal for +2%",
+            'Ashen\x20Wand': "Ashen Wand - Magic attacks +3% burn chance",
+            'Arcane\x20Surge': "Arcane Surge - Magic attacks +3% overcharge chance",
+            'Serrated\x20Vein': "Serrated Vein - Slash +3% bleed chance",
+            'Thorns\x20of\x20the\x20Crypt': "Thorns of the Crypt - Reflect +7% damage taken",
+            'Blood\x20Alchemy': "Blood Alchemy - HP potions heal +25%",
+            'Crimson\x20Vitality': "Crimson Vitality - Max HP +6%",
+            'Venom\x20Script': "Venom Script - Slash +2% poison chance"
         },
         MAX_LOGS = 0x7d0;
 
