@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Veyra Castle Auto-Pilot(Force Diagnostic)
+// @name         Auto Climb Castle
 // @namespace    http://tampermonkey.net/
 // @version      2.1
 // @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js

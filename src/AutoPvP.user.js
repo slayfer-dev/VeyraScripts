@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         AutoPvP
+// @name         Auto PvP Matchmaking
 // @namespace    https://demonicscans.org/scripts/
 // @version      2.1
 // @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js
