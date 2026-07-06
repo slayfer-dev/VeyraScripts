@@ -5,6 +5,7 @@
 // @description  Auto-combat, auto-heal, auto-left-path, auto-enter. Added native Chrome console logging to diagnose button click failures.
 // @author       AI Assistant
 // @match        https://demonicscans.org/occurrence_castle.php?slug=vampire_castle*
+// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/AntiThrottle.js
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand

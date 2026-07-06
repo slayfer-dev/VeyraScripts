@@ -1,26 +1,32 @@
 // ==UserScript==
-// @name         Auto PvP Bot 1.0
-// @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Automates PvP solo matches: matchmaking, combat turns, skill usage, and re-queuing.
-// @author       You
-// @match        *demonicscans.org/pvp.*
-// @grant        GM_addStyle
-// @grant        GM_getValue
-// @grant        GM_setValue
+// @name         AutoPvP 2.0
+// @namespace    https://demonicscans.org/scripts/
+// @version      2.0
+// @description  Automates PvP solo matches with premium UI, background tabs, history, and audio notifications.
+// @author       Slayfer
+// @match        https://demonicscans.org/pvp.php*
+// @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/AntiThrottle.js
+// @grant        GM.getValue
+// @grant        GM.setValue
 // ==/UserScript==
 
 (async function () {
     'use strict';
+    try {
 
     // =========================================================================
-    // --- Skills Dictionary (add new skills here) ---
+    // --- Skills Dictionary ---
     // =========================================================================
     const PVP_SKILLS = {
+        // Basic Skills
         '0':  { name: "Slash",          cost: 0, type: "attack",  target: "enemy",      icon: "/images/skills/slash.webp" },
         '-1': { name: "Power Slash",    cost: 9, type: "attack",  target: "enemy",      icon: "/images/skills/power_slash.webp" },
-        '8':  { name: "Heal",           cost: 5, type: "support", target: "ally_alive",  icon: "/images/skills/Heal.webp" },
+        // Cleric Skills
+        '8':  { name: "Heal",           cost: 5, type: "support", target: "ally_alive", icon: "/images/skills/Heal.webp" },
         '9':  { name: "Judgment Seal",  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Judgment Seal.webp" },
+        // Hunter Skills
+        '6':  { name: "Back Stab",  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Back Stab.webp" },
+        '7':  { name: "Killer Instinct",  cost: 5, type: "attack",  target: "enemy",      icon: "/images/skills/Killer Instinct.webp" },
     };
 
     // =========================================================================
@@ -34,32 +40,52 @@
         autoQueue: true,
         pollInterval: 1000,
         allowAnySkill: false,
+        soundMatchEnd: true,
+        soundNoTokens: true,
+        retryNoTokens: false,
+        showStandbyWarning: true
     };
 
-    let config = GM_getValue("veyra_pvp_config", { ...DEFAULT_PVP_CONFIG });
-    // Ensure all keys exist after loading (in case new defaults were added)
-    config = { ...DEFAULT_PVP_CONFIG, ...config };
-    if (config.healSkillId) { config.supportSkillId = config.healSkillId; delete config.healSkillId; }
-    if (config.allowSupportSpam !== undefined) { config.allowAnySkill = config.allowSupportSpam; delete config.allowSupportSpam; }
+    let config = await GM.getValue("veyra_pvp2_config", null);
+    config = { ...DEFAULT_PVP_CONFIG, ...(config || {}) };
 
-    let isRunning = GM_getValue("veyra_pvp_running", false);
+    let isRunning = await GM.getValue("veyra_pvp2_running", false);
     let matchId = null;
     let sinceLogId = 0;
     let enemyTargetKey = null;
     let myTargetKey = null;
     let abortController = null;
-
-    // Session stats (persisted)
-    let sessionStats = GM_getValue("veyra_pvp_stats", {
-        matches: 0,
-        wins: 0,
-        losses: 0,
-        skillUsage: {},
-    });
-
-    function saveStats() {
-        GM_setValue("veyra_pvp_stats", sessionStats);
+    let myTabId = sessionStorage.getItem("veyra_pvp2_tab_id");
+    const navType = performance.getEntriesByType('navigation')[0]?.type;
+    
+    // If the tab was duplicated, it copies the sessionStorage but triggers a 'navigate' event.
+    // We only trust the saved ID if this was a strict 'reload' (F5 refresh).
+    if (!myTabId || navType !== 'reload') {
+        myTabId = Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem("veyra_pvp2_tab_id", myTabId);
     }
+    
+    // Live match state for resumption
+    let activeMatchState = await GM.getValue("veyra_pvp2_active_match", null);
+    if (!activeMatchState) activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
+
+    // Session stats & History
+    let sessionStats = await GM.getValue("veyra_pvp2_stats", null);
+    if (!sessionStats) sessionStats = { matches: 0, wins: 0, losses: 0, history: [], globalSkills: {} };
+    if (!sessionStats.globalSkills) sessionStats.globalSkills = {};
+
+    async function saveStats() {
+        await GM.setValue("veyra_pvp2_stats", sessionStats);
+    }
+    async function saveConfig() {
+        await GM.setValue("veyra_pvp2_config", config);
+    }
+    async function saveActiveMatch() {
+        await GM.setValue("veyra_pvp2_active_match", activeMatchState);
+    }
+
+    let isMaster = false;
+    // Lock logic is now handled by initLockManager at the bottom
 
     const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -70,21 +96,60 @@
         return null;
     }
 
-    function saveConfig() {
-        GM_setValue("veyra_pvp_config", config);
+    // =========================================================================
+    // --- Audio ---
+    // =========================================================================
+    function playChime() {
+        if (!config.soundMatchEnd) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const playTone = (freq, time, dur) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0, time);
+                gain.gain.linearRampToValueAtTime(0.5, time + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
+                osc.start(time);
+                osc.stop(time + dur);
+            };
+            const now = ctx.currentTime;
+            playTone(523.25, now, 0.4); 
+            playTone(659.25, now + 0.2, 0.6); 
+        } catch(e) {}
+    }
+
+    function playErrorBeep() {
+        if (!config.soundNoTokens) return;
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, ctx.currentTime);
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            gain.gain.setValueAtTime(0.3, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+        } catch(e) {}
     }
 
     // =========================================================================
     // --- UI ---
     // =========================================================================
-    function setupUI() {
-        const savedUI = GM_getValue("veyra_pvp_ui", {
-            left: 'calc(100vw - 420px)',
-            top: '50px',
-            width: '400px',
-            height: 'auto',
-            minimized: false
-        });
+    async function setupUI() {
+        let savedUI = await GM.getValue("veyra_pvp2_ui", null);
+        if (!savedUI || typeof savedUI !== 'object') savedUI = {};
+        if (!savedUI.left) savedUI.left = 'calc(100vw - 420px)';
+        if (!savedUI.top) savedUI.top = '50px';
+        if (!savedUI.width) savedUI.width = '400px';
+        if (savedUI.minimized === undefined) savedUI.minimized = false;
+        if (!savedUI.activeTab) savedUI.activeTab = 'matchmaking';
 
         const css = `
         #pvp-container {
@@ -92,334 +157,322 @@
             top: ${savedUI.top};
             left: ${savedUI.left};
             width: ${savedUI.width};
-            height: ${savedUI.height};
-            max-height: 80vh;
-            min-width: 340px;
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid #334155;
-            border-radius: 8px;
-            color: #e2e8f0;
-            font-family: 'Segoe UI', sans-serif;
+            min-width: 350px;
+            background: rgba(15, 12, 20, 0.95);
+            border: 1px solid rgba(241, 201, 107, 0.6);
+            border-radius: 12px;
+            color: #f8ead2;
+            font-family: Georgia, "Times New Roman", serif;
             z-index: 999999;
             display: flex;
             flex-direction: column;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
-            resize: both;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(12px);
+            resize: horizontal;
             overflow: hidden;
             font-size: 13px;
         }
         #pvp-header {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            background: rgba(0,0,0,0.3);
             padding: 10px 14px;
             cursor: grab;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #334155;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
             user-select: none;
         }
         #pvp-header:active { cursor: grabbing; }
-        #pvp-title { font-weight: bold; font-size: 15px; display: flex; gap: 8px; align-items: center; }
-        #pvp-content {
-            display: flex;
-            flex-direction: column;
-            padding: 12px;
-            overflow-y: auto;
-            flex-grow: 1;
-            gap: 12px;
-        }
-        .pvp-minimized { height: auto !important; min-height: 0 !important; padding-bottom: 0 !important; resize: none !important; }
-        .pvp-minimized #pvp-content { display: none; }
+        #pvp-title { font-weight: bold; font-size: 15px; color: #ffd88a; }
+        .pvp-btn-minimize { background: none; border: none; color: #d9b66f; cursor: pointer; font-size: 18px; font-weight: bold; }
+        .pvp-btn-minimize:hover { color: white; }
 
-        .pvp-section {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            padding: 10px;
-        }
-        .pvp-section-title {
-            font-weight: bold;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #94a3b8;
-            margin-bottom: 8px;
-        }
+        .pvp-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.02); }
+        .pvp-tab { padding: 8px 16px; cursor: pointer; font-weight: bold; color: #cdbfba; transition: 0.2s; border-bottom: 2px solid transparent; flex:1; text-align:center;}
+        .pvp-tab:hover { color: #f8ead2; background: rgba(255,255,255,0.05); }
+        .pvp-tab.active { color: #ffd88a; border-bottom-color: #d9b66f; background: rgba(255,255,255,0.08); }
 
-        .pvp-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-        .pvp-row:last-child { margin-bottom: 0; }
-        .pvp-row label { flex: 0 0 110px; font-size: 12px; color: #cbd5e1; }
+        #pvp-content { padding: 12px; max-height: 70vh; overflow-y: auto; }
+        .pvp-minimized #pvp-content, .pvp-minimized .pvp-tabs { display: none; }
 
+        .pvp-tab-content { display: none; flex-direction: column; gap: 12px; }
+        .pvp-tab-content.active { display: flex; }
+
+        .pvp-section { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 10px; }
+        .pvp-section-title { font-weight: bold; font-size: 11px; text-transform: uppercase; color: #d9b66f; margin-bottom: 8px; }
+
+        .pvp-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .pvp-row label { font-size: 12px; color: #cdbfba; flex: 1; }
         .pvp-row select, .pvp-row input[type="number"] {
-            flex: 1;
-            background: #0f172a;
-            border: 1px solid #475569;
-            color: white;
-            padding: 5px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            min-width: 0;
-            box-sizing: border-box;
+            background: #221b28; color: #f8ead2; border: 1px solid #555; padding: 5px; border-radius: 4px; flex: 1;
         }
-        .pvp-row select:focus, .pvp-row input:focus { outline: 1px solid #3b82f6; border-color: #3b82f6; }
 
-        .pvp-checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-        .pvp-checkbox-row input[type="checkbox"] { accent-color: #3b82f6; }
-
+        .pvp-checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        
         #pvp-status-box {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 4px;
-            padding: 8px;
-            font-size: 11px;
-            color: #94a3b8;
-            min-height: 40px;
-            height: 60px;
-            max-height: 200px;
-            overflow-y: auto;
-            resize: vertical;
-            line-height: 1.6;
-            word-wrap: break-word;
+            background: #110e14; border: 1px solid #444; border-radius: 4px; padding: 8px; font-size: 11px;
+            color: #cdbfba; height: 120px; overflow-y: auto; font-family: monospace; line-height: 1.4;
         }
-        .pvp-status-line { margin: 0; }
-        .pvp-status-action { color: #60a5fa; }
+        .pvp-status-action { color: #6db3f2; }
         .pvp-status-good { color: #4ade80; }
         .pvp-status-bad { color: #f87171; }
         .pvp-status-info { color: #fbbf24; }
 
-        .pvp-stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px;
-            text-align: center;
-        }
-        .pvp-stat-item {
-            background: #0f172a;
-            border-radius: 4px;
-            padding: 6px 4px;
-        }
-        .pvp-stat-value { font-size: 18px; font-weight: bold; color: white; }
-        .pvp-stat-label { font-size: 10px; color: #64748b; text-transform: uppercase; }
-
-        #pvp-skill-usage {
-            font-size: 11px;
-            color: #94a3b8;
-            margin-top: 6px;
-        }
-        #pvp-skill-usage span { color: #e2e8f0; }
-
         .pvp-btn {
-            padding: 8px 14px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 13px;
-            width: 100%;
-            transition: background 0.2s;
+            padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: 0.2s;
         }
-        .pvp-btn-start { background: #3b82f6; color: white; }
-        .pvp-btn-start:hover { background: #2563eb; }
-        .pvp-btn-stop { background: #ef4444; color: white; }
-        .pvp-btn-stop:hover { background: #dc2626; }
-        .pvp-btn-minimize {
-            background: none; border: none; color: #94a3b8; cursor: pointer;
-            font-size: 18px; line-height: 1; padding: 0 4px;
-        }
-        .pvp-btn-minimize:hover { color: white; }
+        .pvp-btn-start { background: #d9b66f; color: #1b1210; }
+        .pvp-btn-start:hover { background: #ffd88a; }
+        .pvp-btn-stop { background: #cf2d45; color: white; }
+        .pvp-btn-stop:hover { background: #ef4444; }
+
+        .pvp-history-item { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px; margin-bottom: 6px; font-size: 12px;}
+        .pvp-history-win { border-left: 4px solid #4ade80; }
+        .pvp-history-loss { border-left: 4px solid #f87171; }
         `;
-        GM_addStyle(css);
+        const styleEl = document.createElement('style');
+        styleEl.textContent = css;
+        document.head.appendChild(styleEl);
 
-        // Build skill options for dropdowns
-        const basicSkillOptions = Object.entries(PVP_SKILLS)
-            .filter(([, s]) => s.cost === 0)
-            .map(([id, s]) => '<option value="' + id + '"' + (config.basicSkillId === id ? ' selected' : '') + '>' + s.name + ' (Cost: ' + s.cost + ')</option>')
-            .join('');
-
-        const attackSkillOptions = Object.entries(PVP_SKILLS)
-            .filter(([, s]) => config.allowAnySkill || s.type === 'attack')
-            .map(([id, s]) => '<option value="' + id + '"' + (config.chosenSkillId === id ? ' selected' : '') + '>' + s.name + ' (Cost: ' + s.cost + ')</option>')
-            .join('');
-
-        const supportSkillOptions = Object.entries(PVP_SKILLS)
-            .filter(([, s]) => config.allowAnySkill || s.type === 'support')
-            .map(([id, s]) => '<option value="' + id + '"' + (config.supportSkillId === id ? ' selected' : '') + '>' + s.name + ' (Cost: ' + s.cost + ')</option>')
+        const getOpts = (filterFn, selectedId) => Object.entries(PVP_SKILLS)
+            .filter(filterFn)
+            .map(([id, s]) => '<option value="' + id + '"' + (selectedId === id ? ' selected' : '') + '>' + s.name + ' (' + s.cost + ')' + '</option>')
             .join('');
 
         const container = document.createElement('div');
         container.id = 'pvp-container';
         if (savedUI.minimized) container.classList.add('pvp-minimized');
 
-        container.innerHTML = [
-            '<div id="pvp-header">',
-            '  <div id="pvp-title">\u2694\uFE0F AutoPvP 1.0</div>',
-            '  <button class="pvp-btn-minimize" id="pvp-toggle-minimize">' + (savedUI.minimized ? '+' : '\u2014') + '</button>',
-            '</div>',
-            '<div id="pvp-content">',
+        container.innerHTML = `
+            <div id="pvp-header">
+                <div id="pvp-title">⚔️ AutoPvP 2.0</div>
+                <button class="pvp-btn-minimize" id="pvp-toggle-min">${savedUI.minimized ? '+' : '×'}</button>
+            </div>
+            <div class="pvp-tabs">
+                <div class="pvp-tab ${savedUI.activeTab === 'matchmaking' ? 'active' : ''}" data-tab="matchmaking">Match</div>
+                <div class="pvp-tab ${savedUI.activeTab === 'history' ? 'active' : ''}" data-tab="history">Historial</div>
+                <div class="pvp-tab ${savedUI.activeTab === 'config' ? 'active' : ''}" data-tab="config">Config</div>
+            </div>
+            <div id="pvp-content">
+                
+                <!-- MATCHMAKING TAB -->
+                <div class="pvp-tab-content ${savedUI.activeTab === 'matchmaking' ? 'active' : ''}" id="tab-matchmaking">
+                    <div class="pvp-section" style="display:flex; justify-content:space-between; font-weight:bold;">
+                        <span style="color:#4ade80" id="pvp-my-hp">Me: ?/?</span>
+                        <span style="color:#f87171" id="pvp-enemy-hp">Enemy: ?/?</span>
+                    </div>
+                    <div class="pvp-section">
+                        <div class="pvp-section-title">Live Status</div>
+                        <div id="pvp-status-box">Idle.</div>
+                    </div>
+                    <div class="pvp-section">
+                        <div class="pvp-section-title">Session Skills Used</div>
+                        <div id="pvp-global-skills-match" style="font-size:12px; color:#cdbfba;"></div>
+                    </div>
+                    <button id="pvp-start-btn" class="pvp-btn ${isRunning ? 'pvp-btn-stop' : 'pvp-btn-start'}">${isRunning ? 'Stop AutoPvP' : 'Start AutoPvP'}</button>
+                </div>
 
-            // --- Controls Section ---
-            '  <div class="pvp-section">',
-            '    <div class="pvp-section-title">Configuration</div>',
-            '    <div class="pvp-row">',
-            '      <label>Basic Attack</label>',
-            '      <select id="pvp-basic-skill">' + basicSkillOptions + '</select>',
-            '    </div>',
-            '    <div class="pvp-row">',
-            '      <label>Main Skill</label>',
-            '      <select id="pvp-chosen-skill">' + attackSkillOptions + '</select>',
-            '    </div>',
-            '    <div class="pvp-row">',
-            '      <label>Support Skill</label>',
-            '      <select id="pvp-support-skill">' + supportSkillOptions + '</select>',
-            '    </div>',
-            '    <div class="pvp-row">',
-            '      <label>Support at HP %</label>',
-            '      <input type="number" id="pvp-heal-threshold" value="' + config.healThreshold + '" min="0" max="100">',
-            '    </div>',
-            '    <div class="pvp-checkbox-row" style="margin-top:6px;">',
-            '      <input type="checkbox" id="pvp-auto-queue"' + (config.autoQueue ? ' checked' : '') + '>',
-            '      <label for="pvp-auto-queue">Auto-queue next match</label>',
-            '    </div>',
-            '    <div class="pvp-checkbox-row" style="margin-top:6px;">',
-            '      <input type="checkbox" id="pvp-allow-any-skill"' + (config.allowAnySkill ? ' checked' : '') + '>',
-            '      <label for="pvp-allow-any-skill">Allow any skill on any field</label>',
-            '    </div>',
-            '  </div>',
+                <!-- HISTORY TAB -->
+                <div class="pvp-tab-content ${savedUI.activeTab === 'history' ? 'active' : ''}" id="tab-history">
+                    <div class="pvp-section" style="display:flex; justify-content:space-around; font-size:14px; font-weight:bold;">
+                        <span>Total: <span id="hist-total">${sessionStats.matches}</span></span>
+                        <span style="color:#4ade80">W: <span id="hist-wins">${sessionStats.wins}</span></span>
+                        <span style="color:#f87171">L: <span id="hist-losses">${sessionStats.losses}</span></span>
+                    </div>
+                    <div class="pvp-section">
+                        <div class="pvp-section-title">Session Skills Used</div>
+                        <div id="pvp-global-skills-hist" style="font-size:12px; color:#cdbfba;"></div>
+                    </div>
+                    <button id="pvp-clear-hist" class="pvp-btn" style="background:#444; color:white; padding:4px;">Clear History</button>
+                    <div id="pvp-history-list" style="margin-top:10px;"></div>
+                </div>
 
-            // --- Health Section ---
-            '  <div class="pvp-section">',
-            '    <div class="pvp-section-title">Combat Health</div>',
-            '    <div class="pvp-row"><label>My HP:</label><span id="pvp-my-hp" style="font-weight:bold; color:#4ade80">0 / 0</span></div>',
-            '    <div class="pvp-row"><label>Enemy HP:</label><span id="pvp-enemy-hp" style="font-weight:bold; color:#f87171">0 / 0</span></div>',
-            '  </div>',
+                <!-- CONFIG TAB -->
+                <div class="pvp-tab-content ${savedUI.activeTab === 'config' ? 'active' : ''}" id="tab-config">
+                    <div class="pvp-section">
+                        <div class="pvp-section-title">Combat Skills</div>
+                        <div class="pvp-row">
+                            <label>Basic Attack (0-cost)</label>
+                            <select id="pvp-basic">${getOpts(([,s]) => s.cost === 0, config.basicSkillId)}</select>
+                        </div>
+                        <div class="pvp-row">
+                            <label>Main Skill</label>
+                            <select id="pvp-main">${getOpts(([,s]) => config.allowAnySkill || s.type === 'attack', config.chosenSkillId)}</select>
+                        </div>
+                        <div class="pvp-row">
+                            <label>Support Skill</label>
+                            <select id="pvp-support">${getOpts(([,s]) => config.allowAnySkill || s.type === 'support', config.supportSkillId)}</select>
+                        </div>
+                        <div class="pvp-row">
+                            <label>Support HP %</label>
+                            <input type="number" id="pvp-threshold" value="${config.healThreshold}" min="0" max="100">
+                        </div>
+                        <div class="pvp-checkbox-row">
+                            <input type="checkbox" id="pvp-any-skill" ${config.allowAnySkill ? 'checked' : ''}>
+                            <label>Allow any skill on any field</label>
+                        </div>
+                    </div>
+                    <div class="pvp-section">
+                        <div class="pvp-section-title">System</div>
+                        <div class="pvp-checkbox-row">
+                            <input type="checkbox" id="pvp-autoqueue" ${config.autoQueue ? 'checked' : ''}>
+                            <label>Auto-queue next match</label>
+                        </div>
+                        <div class="pvp-checkbox-row">
+                            <input type="checkbox" id="pvp-sound-end" ${config.soundMatchEnd ? 'checked' : ''}>
+                            <label>Play sound on Match End</label>
+                        </div>
+                        <div class="pvp-checkbox-row">
+                            <input type="checkbox" id="pvp-sound-tokens" ${config.soundNoTokens ? 'checked' : ''}>
+                            <label>Play sound when Out of Tokens</label>
+                        </div>
+                        <div class="pvp-checkbox-row">
+                            <input type="checkbox" id="pvp-retry-tokens" ${config.retryNoTokens ? 'checked' : ''}>
+                            <label>Keep retrying when Out of Tokens (checks every 60s)</label>
+                        </div>
+                        <div class="pvp-checkbox-row">
+                            <input type="checkbox" id="pvp-standby-warn" ${config.showStandbyWarning ? 'checked' : ''}>
+                            <label>Show visual warning on Standby tabs</label>
+                        </div>
+                    </div>
+                </div>
 
-            // --- Status Section ---
-            '  <div class="pvp-section">',
-            '    <div class="pvp-section-title">Status</div>',
-            '    <div id="pvp-status-box">Idle. Press Start to begin.</div>',
-            '  </div>',
-
-            // --- Stats Section ---
-            '  <div class="pvp-section">',
-            '    <div class="pvp-section-title">Session Stats</div>',
-            '    <div class="pvp-stats-grid">',
-            '      <div class="pvp-stat-item"><div class="pvp-stat-value" id="pvp-stat-matches">0</div><div class="pvp-stat-label">Matches</div></div>',
-            '      <div class="pvp-stat-item"><div class="pvp-stat-value" id="pvp-stat-wins" style="color:#4ade80">0</div><div class="pvp-stat-label">Wins</div></div>',
-            '      <div class="pvp-stat-item"><div class="pvp-stat-value" id="pvp-stat-losses" style="color:#f87171">0</div><div class="pvp-stat-label">Losses</div></div>',
-            '    </div>',
-            '    <div id="pvp-skill-usage"></div>',
-            '    <button id="pvp-clear-stats-btn" class="pvp-btn" style="margin-top: 8px; background: #334155; color: white; padding: 4px; font-size: 11px;">Clear Match History</button>',
-            '  </div>',
-
-            // --- Start Button ---
-            '  <button id="pvp-start-btn" class="pvp-btn ' + (isRunning ? 'pvp-btn-stop' : 'pvp-btn-start') + '">' + (isRunning ? 'Stop' : 'Start') + '</button>',
-
-            '</div>',
-        ].join('\n');
-
+            </div>
+        `;
         document.body.appendChild(container);
+        renderHistory();
+        renderGlobalSkills();
 
-        // --- Drag Logic ---
+        // Drag
         const header = document.getElementById('pvp-header');
         let isDragging = false, startX, startY, initialX, initialY;
-        header.addEventListener('mousedown', function (e) {
-            if (e.target.id === 'pvp-toggle-minimize') return;
-            isDragging = true;
+        header.onpointerdown = (e) => {
+            if (e.target.id === 'pvp-toggle-min') return;
+            e.preventDefault(); isDragging = true;
             startX = e.clientX; startY = e.clientY;
             initialX = container.offsetLeft; initialY = container.offsetTop;
-        });
-        document.addEventListener('mousemove', function (e) {
+            header.style.cursor = "grabbing";
+            try { header.setPointerCapture(e.pointerId); } catch(err){}
+        };
+        header.onpointermove = (e) => {
             if (!isDragging) return;
             container.style.left = (initialX + e.clientX - startX) + 'px';
             container.style.top = (initialY + e.clientY - startY) + 'px';
-            container.style.right = 'auto';
-        });
-        document.addEventListener('mouseup', function () {
-            if (isDragging) {
-                isDragging = false;
-                savedUI.left = container.style.left;
-                savedUI.top = container.style.top;
-                GM_setValue("veyra_pvp_ui", savedUI);
-            }
+        };
+        const stopDrag = async (e) => {
+            if (!isDragging) return;
+            isDragging = false; header.style.cursor = "grab";
+            try { header.releasePointerCapture(e.pointerId); } catch(err){}
+            if (container.style.left) savedUI.left = container.style.left;
+            if (container.style.top) savedUI.top = container.style.top;
+            await GM.setValue("veyra_pvp2_ui", savedUI);
+        };
+        header.onpointerup = stopDrag;
+        header.onpointercancel = stopDrag;
+
+        // Tabs
+        document.querySelectorAll('.pvp-tab').forEach(tab => {
+            tab.onclick = async () => {
+                document.querySelectorAll('.pvp-tab, .pvp-tab-content').forEach(el => el.classList.remove('active'));
+                tab.classList.add('active');
+                const tName = tab.getAttribute('data-tab');
+                document.getElementById('tab-' + tName).classList.add('active');
+                savedUI.activeTab = tName;
+                await GM.setValue("veyra_pvp2_ui", savedUI);
+            };
         });
 
-        // --- Resize Observer ---
-        const resizeObserver = new ResizeObserver(function () {
-            if (!isDragging) {
-                savedUI.width = container.style.width || (container.offsetWidth + 'px');
-                savedUI.height = container.style.height || (container.offsetHeight + 'px');
-                GM_setValue("veyra_pvp_ui", savedUI);
-            }
-        });
-        resizeObserver.observe(container);
-
-        // --- Minimize ---
-        const minBtn = document.getElementById('pvp-toggle-minimize');
-        minBtn.addEventListener('click', function () {
+        // Min/Max
+        document.getElementById('pvp-toggle-min').onclick = async () => {
             container.classList.toggle('pvp-minimized');
             savedUI.minimized = container.classList.contains('pvp-minimized');
-            minBtn.innerText = savedUI.minimized ? '+' : '\u2014';
-            GM_setValue("veyra_pvp_ui", savedUI);
-        });
+            document.getElementById('pvp-toggle-min').innerText = savedUI.minimized ? '+' : '×';
+            await GM.setValue("veyra_pvp2_ui", savedUI);
+        };
 
-        // --- Clear Stats ---
-        document.getElementById('pvp-clear-stats-btn').addEventListener('click', function () {
-            sessionStats = { matches: 0, wins: 0, losses: 0, skillUsage: {} };
-            saveStats();
-            updateStatsUI();
-        });
-
-        // --- Start / Stop ---
-        document.getElementById('pvp-start-btn').addEventListener('click', function (e) {
+        // Start/Stop
+        document.getElementById('pvp-start-btn').onclick = async (e) => {
             isRunning = !isRunning;
-            GM_setValue("veyra_pvp_running", isRunning);
-            e.target.innerText = isRunning ? 'Stop' : 'Start';
+            await GM.setValue("veyra_pvp2_running", isRunning);
+            e.target.innerText = isRunning ? 'Stop AutoPvP' : 'Start AutoPvP';
             e.target.className = isRunning ? 'pvp-btn pvp-btn-stop' : 'pvp-btn pvp-btn-start';
-            if (isRunning) {
-                mainLoop();
-            } else {
-                if (abortController) abortController.abort();
-            }
-        });
+            if (isRunning) mainLoop();
+            else if (abortController) abortController.abort();
+        };
 
-        // --- Config change listeners ---
-        document.getElementById('pvp-basic-skill').addEventListener('change', function (e) {
-            config.basicSkillId = e.target.value;
-            saveConfig();
-        });
-        document.getElementById('pvp-chosen-skill').addEventListener('change', function (e) {
-            config.chosenSkillId = e.target.value;
-            saveConfig();
-        });
-        document.getElementById('pvp-support-skill').addEventListener('change', function (e) {
-            config.supportSkillId = e.target.value;
-            saveConfig();
-        });
-        document.getElementById('pvp-heal-threshold').addEventListener('change', function (e) {
-            config.healThreshold = Number(e.target.value);
-            saveConfig();
-        });
-        document.getElementById('pvp-auto-queue').addEventListener('change', function (e) {
-            config.autoQueue = e.target.checked;
-            saveConfig();
-        });
-        document.getElementById('pvp-allow-any-skill').addEventListener('change', function (e) {
-            config.allowAnySkill = e.target.checked;
-            saveConfig();
+        // Config Listeners
+        const listen = (id, key, isCheckbox, isNum) => {
+            document.getElementById(id).onchange = async (e) => {
+                let val = isCheckbox ? e.target.checked : e.target.value;
+                if (isNum) val = Number(val);
+                config[key] = val;
+                await saveConfig();
+                
+                // If 'any skill' changed, re-render dropdowns
+                if (key === 'allowAnySkill') {
+                    document.getElementById('pvp-main').innerHTML = getOpts(([,s]) => config.allowAnySkill || s.type === 'attack', config.chosenSkillId);
+                    document.getElementById('pvp-support').innerHTML = getOpts(([,s]) => config.allowAnySkill || s.type === 'support', config.supportSkillId);
+                }
+            };
+        };
+        listen('pvp-basic', 'basicSkillId', false, false);
+        listen('pvp-main', 'chosenSkillId', false, false);
+        listen('pvp-support', 'supportSkillId', false, false);
+        listen('pvp-threshold', 'healThreshold', false, true);
+        listen('pvp-any-skill', 'allowAnySkill', true, false);
+        listen('pvp-autoqueue', 'autoQueue', true, false);
+        listen('pvp-sound-end', 'soundMatchEnd', true, false);
+        listen('pvp-sound-tokens', 'soundNoTokens', true, false);
+        listen('pvp-retry-tokens', 'retryNoTokens', true, false);
+        listen('pvp-standby-warn', 'showStandbyWarning', true, false);
 
-            const newAttackOptions = Object.entries(PVP_SKILLS)
-                .filter(([, s]) => config.allowAnySkill || s.type === 'attack')
-                .map(([id, s]) => '<option value="' + id + '"' + (config.chosenSkillId === id ? ' selected' : '') + '>' + s.name + ' (Cost: ' + s.cost + ')</option>')
-                .join('');
-            document.getElementById('pvp-chosen-skill').innerHTML = newAttackOptions;
-            
-            const newSupportOptions = Object.entries(PVP_SKILLS)
-                .filter(([, s]) => config.allowAnySkill || s.type === 'support')
-                .map(([id, s]) => '<option value="' + id + '"' + (config.supportSkillId === id ? ' selected' : '') + '>' + s.name + ' (Cost: ' + s.cost + ')</option>')
-                .join('');
-            document.getElementById('pvp-support-skill').innerHTML = newSupportOptions;
-        });
+        // Clear History
+        document.getElementById('pvp-clear-hist').onclick = async () => {
+            sessionStats.matches = 0; sessionStats.wins = 0; sessionStats.losses = 0; sessionStats.history = []; sessionStats.globalSkills = {};
+            await saveStats();
+            document.getElementById('hist-total').innerText = 0;
+            document.getElementById('hist-wins').innerText = 0;
+            document.getElementById('hist-losses').innerText = 0;
+            renderHistory();
+            renderGlobalSkills();
+        };
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('pvp-history-list');
+        if (!list) return;
+        if (sessionStats.history.length === 0) {
+            list.innerHTML = '<div style="opacity:0.5; text-align:center;">No history yet.</div>';
+            return;
+        }
+        list.innerHTML = sessionStats.history.map(m => {
+            const cls = m.result === 'Win' ? 'pvp-history-win' : 'pvp-history-loss';
+            const resColor = m.result === 'Win' ? '#4ade80' : '#f87171';
+            const skillsStr = Object.entries(m.skills).length > 0
+                ? '<ul style="margin: 2px 0 0 15px; padding: 0;">' + Object.entries(m.skills).map(([k,v]) => `<li>${PVP_SKILLS[k]?.name || k} x${v}</li>`).join('') + '</ul>'
+                : 'None';
+            return `
+                <div class="pvp-history-item ${cls}">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <strong>Match #${m.id}</strong>
+                        <span style="color:${resColor}; font-weight:bold;">${m.result}</span>
+                    </div>
+                    <div style="color:#cdbfba;">Turns: ${m.turns} | Time: ${m.time}</div>
+                    <div style="color:#94a3b8; font-size:11px; margin-top:4px;">Skills: ${skillsStr}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderGlobalSkills() {
+        const skillsStr = Object.entries(sessionStats.globalSkills || {}).length > 0 
+            ? '<ul style="margin: 2px 0 0 15px; padding: 0;">' + Object.entries(sessionStats.globalSkills).map(([k,v]) => `<li>${PVP_SKILLS[k]?.name || k} x${v}</li>`).join('') + '</ul>'
+            : 'None';
+        
+        const mBox = document.getElementById('pvp-global-skills-match');
+        const hBox = document.getElementById('pvp-global-skills-hist');
+        if (mBox) mBox.innerHTML = skillsStr;
+        if (hBox) hBox.innerHTML = skillsStr;
     }
 
     // =========================================================================
@@ -428,71 +481,73 @@
     function setStatus(text, cssClass) {
         const box = document.getElementById('pvp-status-box');
         if (!box) return;
-        const cls = cssClass ? ' class="pvp-status-line pvp-status-' + cssClass + '"' : ' class="pvp-status-line"';
-        box.innerHTML = '<p' + cls + '>' + text + '</p>';
+        const cls = cssClass ? ` class="pvp-status-${cssClass}"` : '';
+        box.innerHTML = `<p${cls}>${text}</p>`;
         box.scrollTop = box.scrollHeight;
     }
 
     function appendStatus(text, cssClass) {
         const box = document.getElementById('pvp-status-box');
         if (!box) return;
-        const cls = cssClass ? ' class="pvp-status-line pvp-status-' + cssClass + '"' : ' class="pvp-status-line"';
-        // Keep only last 6 lines
-        const lines = box.querySelectorAll('.pvp-status-line');
-        if (lines.length >= 6) lines[0].remove();
+        const ps = box.querySelectorAll('p');
+        if (ps.length >= 15) ps[0].remove();
         const p = document.createElement('p');
-        p.className = 'pvp-status-line' + (cssClass ? ' pvp-status-' + cssClass : '');
+        if (cssClass) p.className = `pvp-status-${cssClass}`;
         p.textContent = text;
+        p.style.margin = "2px 0";
         box.appendChild(p);
         box.scrollTop = box.scrollHeight;
     }
 
-    function updateStatsUI() {
-        const el = function (id) { return document.getElementById(id); };
-        if (el('pvp-stat-matches')) el('pvp-stat-matches').textContent = sessionStats.matches;
-        if (el('pvp-stat-wins')) el('pvp-stat-wins').textContent = sessionStats.wins;
-        if (el('pvp-stat-losses')) el('pvp-stat-losses').textContent = sessionStats.losses;
-
-        const usageEl = document.getElementById('pvp-skill-usage');
-        if (usageEl) {
-            let totalSkills = 0;
-            const parts = Object.entries(sessionStats.skillUsage).map(function (entry) {
-                totalSkills += entry[1];
-                var skillName = PVP_SKILLS[entry[0]] ? PVP_SKILLS[entry[0]].name : ('Skill ' + entry[0]);
-                return skillName + ': <span>' + entry[1] + '</span>';
-            });
-            let text = parts.length > 0 ? parts.join(' &middot; ') : '';
-            if (totalSkills > 0) {
-                text = '<div style="margin-bottom: 4px; color: white;">Total Skills Used: <b>' + totalSkills + '</b></div>' + text;
-            }
-            usageEl.innerHTML = text;
-        }
-    }
-
-    function trackSkillUsage(skillId) {
-        if (!sessionStats.skillUsage[skillId]) sessionStats.skillUsage[skillId] = 0;
-        sessionStats.skillUsage[skillId]++;
-        saveStats();
-        updateStatsUI();
-    }
-
     function updateHealthUI(myHp, myMax, enemyHp, enemyMax) {
-        const el = function (id) { return document.getElementById(id); };
-        if (el('pvp-my-hp') && myMax) el('pvp-my-hp').textContent = myHp + ' / ' + myMax;
-        if (el('pvp-enemy-hp') && enemyMax) el('pvp-enemy-hp').textContent = enemyHp + ' / ' + enemyMax;
+        const el1 = document.getElementById('pvp-my-hp');
+        const el2 = document.getElementById('pvp-enemy-hp');
+        if (el1 && myMax) el1.textContent = `Me: ${myHp}/${myMax}`;
+        if (el2 && enemyMax) el2.textContent = `Enemy: ${enemyHp}/${enemyMax}`;
+    }
+
+    function pushHistory(matchId, resultStr, turnCount, skillUsageObj) {
+        sessionStats.matches++;
+        if (resultStr === 'Win') sessionStats.wins++;
+        else sessionStats.losses++;
+
+        sessionStats.history.unshift({
+            id: matchId,
+            result: resultStr,
+            turns: turnCount,
+            skills: JSON.parse(JSON.stringify(skillUsageObj)),
+            time: new Date().toLocaleTimeString()
+        });
+        if (sessionStats.history.length > 10) sessionStats.history.pop();
+        
+        document.getElementById('hist-total').innerText = sessionStats.matches;
+        document.getElementById('hist-wins').innerText = sessionStats.wins;
+        document.getElementById('hist-losses').innerText = sessionStats.losses;
+        renderHistory();
+        saveStats(); // Note: No await here but it's safe to run in background
     }
 
     // =========================================================================
-    // --- API Functions ---
+    // --- API Functions (with robust error handling) ---
     // =========================================================================
     const BASE_URL = 'https://demonicscans.org';
 
+    async function safeFetch(url, options) {
+        try {
+            const resp = await fetch(url, options);
+            if (!resp.ok) {
+                return { status: 'error', message: `HTTP Error ${resp.status}`, ok: false };
+            }
+            return await resp.json();
+        } catch (e) {
+            return { status: 'error', message: e.message || 'Network Timeout/Failure', ok: false };
+        }
+    }
+
     async function apiPost(endpoint, bodyParams) {
         const body = Object.entries(bodyParams)
-            .map(function (e) { return encodeURIComponent(e[0]) + '=' + encodeURIComponent(e[1]); })
-            .join('&');
-
-        const resp = await fetch(BASE_URL + '/' + endpoint, {
+            .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+        return safeFetch(BASE_URL + '/' + endpoint, {
             method: 'POST',
             headers: {
                 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -501,56 +556,14 @@
             body: body,
             credentials: 'include',
         });
-        return resp.json();
     }
 
     async function apiGet(endpoint, params) {
         const qs = Object.entries(params)
-            .map(function (e) { return encodeURIComponent(e[0]) + '=' + encodeURIComponent(e[1]); })
-            .join('&');
-
-        const resp = await fetch(BASE_URL + '/' + endpoint + '?' + qs, {
+            .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+        return safeFetch(BASE_URL + '/' + endpoint + '?' + qs, {
             method: 'GET',
             credentials: 'include',
-        });
-        return resp.json();
-    }
-
-    async function startMatchmaking() {
-        return apiPost('pvp_matchmake.php', { ladder: 'solo' });
-    }
-
-    async function pollBattleState() {
-        return apiGet('pvp_battle_state.php', {
-            match_id: matchId,
-            since_log_id: sinceLogId,
-        });
-    }
-
-    async function performAction(actionType, extraParams) {
-        var params = {
-            match_id: matchId,
-            since_log_id: sinceLogId,
-            action: actionType,
-        };
-        if (extraParams) {
-            Object.keys(extraParams).forEach(function (k) {
-                params[k] = extraParams[k];
-            });
-        }
-        return apiPost('pvp_battle_action.php', params);
-    }
-
-    async function useSkill(skillId, targetKey) {
-        return performAction('use_skill', {
-            skill_id: skillId,
-            target_key: targetKey,
-        });
-    }
-
-    async function setFastEnemyTurns() {
-        return performAction('set_solo_control_mode', {
-            control_mode: 'fast_enemy',
         });
     }
 
@@ -558,48 +571,36 @@
     // --- Skill Decision Logic ---
     // =========================================================================
     function decideSkill(meData, teamsData) {
-        var myTeamData = teamsData.ally.players_by_num;
-        var myPlayer = null;
-        Object.values(myTeamData).forEach(function (p) {
+        let myPlayer = null;
+        Object.values(teamsData.ally.players_by_num).forEach(p => {
             if (String(p.user_id) === String(getCookie('demon'))) myPlayer = p;
         });
+        if (!myPlayer) myPlayer = Object.values(teamsData.ally.players_by_num)[0];
 
-        if (!myPlayer) {
-            myPlayer = Object.values(myTeamData)[0];
-        }
+        const tokens = meData.tokens;
+        const hpPct = (myPlayer.hp / myPlayer.hp_max) * 100;
 
-        var tokens = meData.tokens;
-        var hp = myPlayer.hp;
-        var hpMax = myPlayer.hp_max;
-        var hpPct = (hp / hpMax) * 100;
+        const chosenSkill = PVP_SKILLS[config.chosenSkillId];
+        const supportSkill = PVP_SKILLS[config.supportSkillId];
+        const basicSkill = PVP_SKILLS[config.basicSkillId] || PVP_SKILLS['0'];
 
-        var chosenSkill = PVP_SKILLS[config.chosenSkillId];
-        var supportSkill = PVP_SKILLS[config.supportSkillId];
-        var basicSkill = PVP_SKILLS[config.basicSkillId] || PVP_SKILLS['0'];
-
-        // Priority 1: Support Skill check (HP threshold)
-        if (supportSkill) {
-            if (hpPct <= config.healThreshold) {
-                if (tokens >= supportSkill.cost) {
-                    var supportTarget = supportSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-                    return { skillId: config.supportSkillId, targetKey: supportTarget, reason: 'HP low (' + Math.round(hpPct) + '%), using support skill' };
-                } else {
-                    // Not enough tokens to use support skill -> build tokens with basic attack
-                    var buildTarget = basicSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-                    return { skillId: config.basicSkillId, targetKey: buildTarget, reason: 'HP low, building tokens for support (' + tokens + '/' + supportSkill.cost + ')' };
-                }
+        if (supportSkill && hpPct <= config.healThreshold) {
+            if (tokens >= supportSkill.cost) {
+                const target = supportSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
+                return { id: config.supportSkillId, target, reason: `HP low (${Math.round(hpPct)}%), using support` };
+            } else {
+                const target = basicSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
+                return { id: config.basicSkillId, target, reason: `Building tokens for support (${tokens}/${supportSkill.cost})` };
             }
         }
 
-        // Priority 2: Use Main Skill if enough tokens
         if (chosenSkill && tokens >= chosenSkill.cost && chosenSkill.cost > 0) {
-            var targetKey = chosenSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-            return { skillId: config.chosenSkillId, targetKey: targetKey, reason: 'Using ' + chosenSkill.name + ' (tokens: ' + tokens + ')' };
+            const target = chosenSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
+            return { id: config.chosenSkillId, target, reason: `Using ${chosenSkill.name} (${tokens}t)` };
         }
 
-        // Priority 3: Basic Attack to restore tokens
-        var basicTarget = basicSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-        return { skillId: config.basicSkillId, targetKey: basicTarget, reason: 'Restoring tokens with basic attack (tokens: ' + tokens + ')' };
+        const basicTarget = basicSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
+        return { id: config.basicSkillId, target: basicTarget, reason: `Restoring tokens (${tokens}t)` };
     }
 
     // =========================================================================
@@ -610,244 +611,264 @@
 
         while (isRunning) {
             try {
-                // ---- Step 1: Start or rejoin a match ----
-                setStatus('Starting matchmaking...', 'action');
-                var mmResult = await startMatchmaking();
+                // ---- Matchmaking / Resumption ----
+                if (!activeMatchState.matchId) {
+                    setStatus('Starting matchmaking...', 'info');
+                    const mmResult = await apiPost('pvp_matchmake.php', { ladder: 'solo' });
+                    
+                    // If the server gives us a match_id, we can proceed even if status is 'error' (e.g. "already in an active match")
+                    if (mmResult.status !== 'success' && !mmResult.match_id) {
+                        const msg = mmResult.message || 'Network failure';
+                        setStatus('Matchmaking failed: ' + msg, 'bad');
+                        
+                        // Check for 'no tokens'/'no energy'
+                        if (msg.toLowerCase().includes('token') || msg.toLowerCase().includes('energy') || msg.toLowerCase().includes('no pvp tokens left')) {
+                            if (config.retryNoTokens) {
+                                appendStatus('Out of Tokens! Retrying in 60s...', 'info');
+                                playErrorBeep();
+                                await sleep(60000);
+                                continue;
+                            } else {
+                                appendStatus('Out of PvP Tokens! Stopping.', 'bad');
+                                playErrorBeep();
+                                document.getElementById('pvp-start-btn').click(); // Turn off visually and logically
+                                break;
+                            }
+                        }
+                        
+                        await sleep(3000);
+                        continue;
+                    }
 
-                if (!mmResult || mmResult.status !== 'success') {
-                    setStatus('Matchmaking failed: ' + (mmResult ? mmResult.message : 'No response'), 'bad');
-                    await sleep(3000);
-                    continue;
+                    activeMatchState.matchId = mmResult.match_id;
+                    activeMatchState.turnCount = 0;
+                    activeMatchState.skillUsage = {};
+                    await saveActiveMatch();
+
+                    if (mmResult.status !== 'success' || (mmResult.message && mmResult.message.includes('active match'))) {
+                        appendStatus('Rejoining active match #' + activeMatchState.matchId, 'info');
+                    } else {
+                        appendStatus('Match found! #' + activeMatchState.matchId, 'good');
+                    }
+                } else {
+                    appendStatus('Resuming existing match #' + activeMatchState.matchId, 'info');
                 }
 
-                matchId = mmResult.match_id;
+                matchId = activeMatchState.matchId;
                 sinceLogId = 0;
 
-                if (mmResult.message && mmResult.message.includes('active match')) {
-                    appendStatus('Rejoining active match #' + matchId, 'info');
-                } else {
-                    appendStatus('Match found! #' + matchId, 'good');
-                }
-
-                // ---- Step 2: Initial state poll to get teams & skills ----
+                // ---- Initial state poll ----
                 await sleep(1000);
-                var initState = await pollBattleState();
-                if (!initState || !initState.ok) {
-                    appendStatus('Failed to get initial state, retrying...', 'bad');
+                const initState = await apiGet('pvp_battle_state.php', { match_id: matchId, since_log_id: sinceLogId });
+                
+                // If the server says the match doesn't exist anymore, reset it
+                if (!initState || (initState.status === 'error' && initState.message && initState.message.includes('not found'))) {
+                    appendStatus('Match expired or not found. Resetting...', 'bad');
+                    activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
+                    await saveActiveMatch();
+                    continue;
+                }
+                
+                if (initState.status === 'error') {
+                    appendStatus('State fetch error, retrying...', 'bad');
                     await sleep(2000);
                     continue;
                 }
 
                 sinceLogId = initState.last_log_id || 0;
-
-                // Extract target keys
-                var myUserId = getCookie('demon');
+                const myUserId = getCookie('demon');
                 myTargetKey = 'ally:' + myUserId;
 
-                // Find enemy
-                var enemyPlayers = initState.teams && initState.teams.enemy ? initState.teams.enemy.players_by_num : {};
-                var firstEnemy = Object.values(enemyPlayers)[0];
+                const enemyPlayers = initState.teams?.enemy?.players_by_num || {};
+                const firstEnemy = Object.values(enemyPlayers)[0];
                 if (firstEnemy) {
                     enemyTargetKey = 'enemy:' + firstEnemy.user_id;
                     appendStatus('vs ' + firstEnemy.username + ' (' + firstEnemy.role + ')', 'info');
                 } else {
-                    enemyTargetKey = null;
                     appendStatus('Could not find enemy, waiting...', 'bad');
                 }
 
-                // ---- Step 3: Set fast enemy turns ----
-                try {
-                    await setFastEnemyTurns();
-                    appendStatus('Fast enemy turns enabled', 'good');
-                } catch (e) {
-                    appendStatus('Could not set fast enemy turns', 'bad');
-                }
+                // Try setting fast enemy turns
+                await apiPost('pvp_battle_action.php', { match_id: matchId, since_log_id: sinceLogId, action: 'set_solo_control_mode', control_mode: 'fast_enemy' });
 
-                // ---- Step 4: Combat loop ----
-                var matchEnded = false;
-                var turnCount = 0;
+                // ---- Combat Loop ----
+                let matchEnded = false;
 
                 while (isRunning && !matchEnded) {
-                    // Poll state
-                    var state;
-                    try {
-                        state = await pollBattleState();
-                    } catch (e) {
-                        await sleep(config.pollInterval);
-                        continue;
-                    }
-
-                    if (!state || !state.ok) {
+                    const state = await apiGet('pvp_battle_state.php', { match_id: matchId, since_log_id: sinceLogId });
+                    if (state.status === 'error') {
                         await sleep(config.pollInterval);
                         continue;
                     }
 
                     sinceLogId = state.last_log_id || sinceLogId;
 
-                    // Update Health
-                    if (state.teams && state.teams.ally && state.teams.enemy) {
-                        var myPlayer = Object.values(state.teams.ally.players_by_num).find(p => String(p.user_id) === String(getCookie('demon'))) || Object.values(state.teams.ally.players_by_num)[0];
-                        var enemyPlayer = Object.values(state.teams.enemy.players_by_num)[0];
-                        if (myPlayer && enemyPlayer) {
-                            updateHealthUI(myPlayer.hp, myPlayer.hp_max, enemyPlayer.hp, enemyPlayer.hp_max);
-                        }
+                    if (state.teams?.ally && state.teams?.enemy) {
+                        const m = Object.values(state.teams.ally.players_by_num).find(p => String(p.user_id) === String(getCookie('demon'))) || Object.values(state.teams.ally.players_by_num)[0];
+                        const e = Object.values(state.teams.enemy.players_by_num)[0];
+                        if (m && e) updateHealthUI(m.hp, m.hp_max, e.hp, e.hp_max);
                     }
 
-                    // Check if match ended
-                    if (state.match && state.match.ended) {
+                    const handleMatchEnd = async (endData) => {
                         matchEnded = true;
-                        sessionStats.matches++;
-                        if (state.match.winner_side === 'ally') {
-                            sessionStats.wins++;
-                            setStatus('Match #' + matchId + ' ended: Victory!', 'good');
-                        } else {
-                            sessionStats.losses++;
-                            setStatus('Match #' + matchId + ' ended: Defeat.', 'bad');
-                        }
-                        saveStats();
-                        updateStatsUI();
+                        playChime();
+                        const result = endData.winner_side === 'ally' ? 'Win' : 'Loss';
+                        setStatus('Match #' + matchId + ' ended: ' + result, result === 'Win' ? 'good' : 'bad');
+                        pushHistory(matchId, result, activeMatchState.turnCount, activeMatchState.skillUsage);
+                        
+                        // Clear active match so we queue next time
+                        activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
+                        await saveActiveMatch();
+                    };
+
+                    if (state.match?.ended) {
+                        await handleMatchEnd(state.match);
                         break;
                     }
 
-                    // Check if it's our turn
                     if (!state.turn || state.turn.side !== 'ally') {
-                        // Enemy turn or waiting, just poll again
                         await sleep(config.pollInterval);
                         continue;
                     }
 
-                    // It's our turn!
-                    turnCount++;
-                    var decision = decideSkill(state.me, state.teams);
+                    // My Turn
+                    activeMatchState.turnCount++;
+                    const decision = decideSkill(state.me, state.teams);
 
-                    if (!decision.targetKey) {
+                    if (!decision.target) {
                         appendStatus('No valid target, waiting...', 'bad');
                         await sleep(config.pollInterval);
                         continue;
                     }
 
-                    // Use the skill
-                    try {
-                        var actionResult = await useSkill(decision.skillId, decision.targetKey);
+                    const actionResult = await apiPost('pvp_battle_action.php', { match_id: matchId, since_log_id: sinceLogId, action: 'use_skill', skill_id: decision.id, target_key: decision.target });
+                    
+                    if (actionResult.status !== 'error') {
+                        sinceLogId = actionResult.last_log_id || sinceLogId;
+                        
+                        // Track usage internally
+                        activeMatchState.skillUsage[decision.id] = (activeMatchState.skillUsage[decision.id] || 0) + 1;
+                        sessionStats.globalSkills[decision.id] = (sessionStats.globalSkills[decision.id] || 0) + 1;
+                        saveStats(); // Save async in background
+                        renderGlobalSkills();
+                        await saveActiveMatch();
 
-                        if (actionResult && actionResult.ok) {
-                            sinceLogId = actionResult.last_log_id || sinceLogId;
-                            trackSkillUsage(decision.skillId);
+                        const skillName = PVP_SKILLS[decision.id]?.name || 'Unknown';
+                        appendStatus('T' + activeMatchState.turnCount + ': ' + skillName + ' | ' + decision.reason, 'action');
 
-                            var skillName = PVP_SKILLS[decision.skillId] ? PVP_SKILLS[decision.skillId].name : ('Skill ' + decision.skillId);
-                            appendStatus('T' + turnCount + ': ' + skillName + ' | ' + decision.reason, 'action');
-
-                            // Update enemy target key if needed (in case enemy changed)
-                            if (actionResult.teams && actionResult.teams.enemy) {
-                                var updatedEnemy = Object.values(actionResult.teams.enemy.players_by_num)[0];
-                                if (updatedEnemy) enemyTargetKey = 'enemy:' + updatedEnemy.user_id;
-                            }
-
-                            // Check if match ended from action response
-                            if (actionResult.match && actionResult.match.ended) {
-                                matchEnded = true;
-                                sessionStats.matches++;
-                                if (actionResult.match.winner_side === 'ally') {
-                                    sessionStats.wins++;
-                                    setStatus('Match #' + matchId + ' ended: Victory!', 'good');
-                                } else {
-                                    sessionStats.losses++;
-                                    setStatus('Match #' + matchId + ' ended: Defeat.', 'bad');
-                                }
-                                saveStats();
-                                updateStatsUI();
-                                break;
-                            }
-                        } else {
-                            // Action failed (possibly not our turn anymore, or bad request)
-                            var errMsg = actionResult && actionResult.message ? actionResult.message : 'Action failed';
-                            appendStatus(errMsg, 'bad');
+                        if (actionResult.teams?.enemy) {
+                            const updatedE = Object.values(actionResult.teams.enemy.players_by_num)[0];
+                            if (updatedE) enemyTargetKey = 'enemy:' + updatedE.user_id;
                         }
-                    } catch (e) {
-                        appendStatus('Action error: ' + e.message, 'bad');
-                    }
 
-                    // Small delay before next poll
+                        if (actionResult.match?.ended) {
+                            await handleMatchEnd(actionResult.match);
+                            break;
+                        }
+                    } else {
+                        appendStatus(actionResult.message || 'Action failed', 'bad');
+                    }
                     await sleep(config.pollInterval);
                 }
 
-                // ---- Post-match ----
                 if (!isRunning) break;
 
                 if (config.autoQueue) {
                     appendStatus('Queuing next match in 3s...', 'info');
                     await sleep(3000);
                 } else {
-                    setStatus('Match over. Auto-queue is off.', 'info');
-                    isRunning = false;
-                    var btn = document.getElementById('pvp-start-btn');
-                    if (btn) {
-                        btn.innerText = 'Start';
-                        btn.className = 'pvp-btn pvp-btn-start';
-                    }
+                    setStatus('Auto-queue is off. Stopped.', 'info');
+                    document.getElementById('pvp-start-btn').click();
                 }
 
-            } catch (loopError) {
-                appendStatus('Loop error: ' + loopError.message, 'bad');
+            } catch (err) {
+                appendStatus('Loop error: ' + err.message, 'bad');
                 await sleep(3000);
             }
         }
     }
 
-    // =========================================================================
-    // --- Initialize (Multi-Tab Safety) ---
-    // =========================================================================
-    let isMaster = false;
-    const bc = new BroadcastChannel('veyra_pvp_channel');
+    async function initLockManager() {
+        let warnBox = null;
+        let isStandby = false;
 
-    bc.onmessage = (e) => {
-        if (e.data === 'whois_master' && isMaster) {
-            bc.postMessage('iam_master');
-        }
-    };
-
-    // Stagger start slightly to avoid exact simultaneous load races
-    await sleep(Math.random() * 200);
-
-    let gotReply = false;
-    const checkListener = (e) => { if (e.data === 'iam_master') gotReply = true; };
-    bc.addEventListener('message', checkListener);
-
-    bc.postMessage('whois_master');
-    await sleep(300);
-    bc.removeEventListener('message', checkListener);
-
-    if (gotReply) {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed; top:20px; left:calc(50vw - 180px); width:360px; text-align:center; background:rgba(239,68,68,0.9); color:white; padding:12px 24px; border-radius:8px; z-index:999999; font-family:sans-serif; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.5); cursor:grab; user-select:none; box-sizing:border-box;';
-        overlay.innerHTML = '⚔️ <b>AutoPvP</b>: Already running on another tab.';
-        document.body.appendChild(overlay);
-
-        let isDraggingOverlay = false, startX, startY, initialX, initialY;
-        overlay.addEventListener('mousedown', e => {
-            isDraggingOverlay = true;
-            startX = e.clientX; startY = e.clientY;
-            initialX = overlay.offsetLeft; initialY = overlay.offsetTop;
-            overlay.style.cursor = 'grabbing';
-        });
-        document.addEventListener('mousemove', e => {
-            if (!isDraggingOverlay) return;
-            overlay.style.left = `${initialX + e.clientX - startX}px`;
-            overlay.style.top = `${initialY + e.clientY - startY}px`;
-        });
-        document.addEventListener('mouseup', () => {
-            if (isDraggingOverlay) {
-                isDraggingOverlay = false;
-                overlay.style.cursor = 'grab';
+        async function showStandby() {
+            if (isStandby) return;
+            isStandby = true;
+            document.getElementById('pvp-container')?.remove();
+            isRunning = false; // Gracefully stop mainLoop if running
+            
+            const saved = await GM.getValue("veyra_pvp2_config", null);
+            const tempConfig = { ...DEFAULT_PVP_CONFIG, ...(saved || {}) };
+            if (tempConfig.showStandbyWarning && !warnBox) {
+                warnBox = document.createElement('div');
+                warnBox.innerHTML = `⚠️ <b>AutoPvP 2.0 Standby</b><br>Another tab is active.`;
+                Object.assign(warnBox.style, {
+                    position: 'fixed', top: '10px', right: '10px', background: 'rgba(255,150,0,0.9)', 
+                    color: 'black', padding: '10px', borderRadius: '6px', zIndex: '999999', 
+                    fontFamily: 'monospace', fontSize: '12px', pointerEvents: 'none', boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
+                });
+                document.body.appendChild(warnBox);
             }
-        });
-        console.log("AutoPvP disabled: Master lock held by another tab.");
-    } else {
-        isMaster = true;
-        setupUI();
-        updateStatsUI();
+        }
 
-        if (isRunning) mainLoop();
+        function hideStandby() {
+            if (!isStandby) return;
+            isStandby = false;
+            if (warnBox) {
+                warnBox.remove();
+                warnBox = null;
+            }
+        }
+
+        async function checkLock() {
+            let master = await GM.getValue("veyra_pvp2_master", null);
+            if (!master) master = { id: '', time: 0 };
+            const now = Date.now();
+
+            if (isMaster) {
+                if (master.id !== myTabId && master.id !== '') {
+                    // Lost lock!
+                    isMaster = false;
+                    console.warn("AutoPvP 2.0: Lost master lock! Stepping down to standby.");
+                    showStandby();
+                } else {
+                    // Renew lock
+                    await GM.setValue("veyra_pvp2_master", { id: myTabId, time: now });
+                }
+            } else {
+                // In standby
+                if (now - master.time > 3000 || master.id === myTabId || master.id === '') {
+                    // Claimed lock!
+                    await GM.setValue("veyra_pvp2_master", { id: myTabId, time: now });
+                    isMaster = true;
+                    hideStandby();
+                    
+                    // Boot up app
+                    isRunning = await GM.getValue("veyra_pvp2_running", false);
+                    await setupUI();
+                    if (isRunning) mainLoop();
+                } else {
+                    showStandby();
+                }
+            }
+        }
+
+        await checkLock(); // Initial check
+        setInterval(checkLock, 1000);
     }
 
+    initLockManager();
+
+    } catch (err) {
+        const errBox = document.createElement('div');
+        Object.assign(errBox.style, {
+            position: 'fixed', top: '10px', left: '10px', background: '#ff3333', 
+            color: 'white', padding: '15px', borderRadius: '8px', zIndex: '9999999', 
+            fontFamily: 'monospace', fontSize: '14px', maxWidth: '80%', boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
+        });
+        errBox.innerHTML = `<b>AutoPvP 2.0 Fatal Crash:</b><br><br>${err.message}<br><br>${err.stack}`;
+        document.body.appendChild(errBox);
+        console.error("AutoPvP 2.0 Error:", err);
+    }
 })();
