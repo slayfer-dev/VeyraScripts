@@ -1,0 +1,5 @@
+.agents
+.playwright
+htmlPreviews
+node_modules
+package-lock.json
