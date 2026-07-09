@@ -14,7 +14,8 @@
 ├── src/
 │   ├── AutoCastle.user.js
 │   ├── AutoFarm.user.js
-│   └── AutoPvP.user.js
+│   ├── AutoPvP.user.js
+│   └── GetSkillsData.user.js
 ├── .gitignore
 ├── eslint.config.mjs
 ├── package.json
@@ -25,11 +26,12 @@
 
 All of the main UserScripts are located in the `src` folder.
 
-| Script Name | Script File | Summary |
-|-------------|-------------|---------|
-| **AutoCastle** | [`AutoCastle.user.js`](./src/AutoCastle.user.js) | UI to Farm automatically the Castle event. |
-| **AutoFarm** | [`AutoFarm.user.js`](./src/AutoFarm.user.js) | UI to Farm and loot mobs automatically. Features an advanced history tracker, custom threshold settings, and background execution. |
-| **AutoPvP** | [`AutoPvP.user.js`](./src/AutoPvP.user.js) | UI to start solo Queue automatically. Includes intelligent matchmaking logic and multi-tab synchronization. |
+| Script Name | Author | Summary | Install Link |
+|-------------|--------|---------|--------------|
+| **AutoCastle** | Slayfer | Automates Castle event farming with background execution and custom delays. | [Install AutoCastle](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js) |
+| **AutoFarm** | Slayfer | Automates farming and mob looting with an advanced history tracker. | [Install AutoFarm](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoFarm.user.js) |
+| **AutoPvP** | Slayfer | Automates solo PvP matchmaking with class filters and smart memory loadouts. | [Install AutoPvP](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js) |
+| **GetSkillsData** | Slayfer | Scrapes player combat skills and attributes into a gorgeous floating UI. | [Install GetSkillsData](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/GetSkillsData.user.js) |
 
 ---
 
@@ -38,10 +40,7 @@ All of the main UserScripts are located in the `src` folder.
 To install any of these scripts, you will need a userscript manager like **[Tampermonkey](https://www.tampermonkey.net/)**.
 
 1. **Install Tampermonkey** on your browser.
-2. Click on the raw link below to install the script directly into your browser:
-   - 🎮 **[Install AutoCastle](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js)**
-   - ⚔️ **[Install AutoFarm](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoFarm.user.js)**
-   - 🛡️ **[Install AutoPvP](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js)**
+2. Click on the Install Links in the table above to install the script directly into your browser.
 3. Tampermonkey will prompt you to install. Click **Install**.
 4. Visit `demonicscans.org` and the scripts will load automatically!
 

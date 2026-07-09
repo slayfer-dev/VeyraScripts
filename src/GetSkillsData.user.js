@@ -4,7 +4,8 @@
 // @version      2.4
 // @description  Scrapes combat skills and displays them in a gorgeous floating UI
 // @author       Slayfer
-// @match        *demonicscans.org/*
+// @match        *demonicscans.org/pvp.php*
+// @match        *demonicscans.org/pvp_battle.php*
 // @grant        none
 // ==/UserScript==
 
