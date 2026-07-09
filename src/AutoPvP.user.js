@@ -21,14 +21,30 @@
     // =========================================================================
     const PVP_SKILLS = {
         // Basic Skills
-        '0':  { name: "Slash",          cost: 0, type: "attack",  target: "enemy",      icon: "/images/skills/slash.webp" },
-        '-1': { name: "Power Slash",    cost: 9, type: "attack",  target: "enemy",      icon: "/images/skills/power_slash.webp" },
+        '0':  { name: "Slash", fullResource: false, resource: 0,  cost: 0, type: "attack",  target: "enemy",      icon: "/images/skills/slash.webp" },
+        '-1': { name: "Power Slash", fullResource: false, resource: 0,  cost: 9, type: "attack",  target: "enemy",      icon: "/images/skills/power_slash.webp" },
         // Cleric Skills
-        '8':  { name: "Heal",           cost: 5, type: "support", target: "ally_alive", icon: "/images/skills/Heal.webp" },
-        '9':  { name: "Judgment Seal",  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Judgment Seal.webp" },
+        '8':  { name: "Heal", fullResource: false, resource: 0,  cost: 5, type: "support", target: "ally_alive", icon: "/images/skills/Heal.webp" },
+        '9':  { name: "Judgment Seal", fullResource: false, resource: 0,  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Judgment Seal.webp" },
+        '18':  { name: "Sanctified Breach", fullResource: false, resource: 0,  cost: 3, type: "support",  target: "ally_alive",      icon: "/images/skills/Sanctified Breach.webp" },
+        // Cleric advanced class 'Saint' skills
+        // Cleric advanced class 'Inquisitor' skills
         // Hunter Skills
-        '6':  { name: "Back Stab",  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Back Stab.webp" },
-        '7':  { name: "Killer Instinct",  cost: 5, type: "support",  target: "enemy",      icon: "/images/skills/Killer Instinct.webp" },
+        '6':  { name: "Back Stab", fullResource: false, resource: 0,  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Back Stab.webp" },
+        '7':  { name: "Killer Instinct", fullResource: false, resource: 0,  cost: 5, type: "support",  target: "enemy",      icon: "/images/skills/Killer Instinct.webp" },
+        // Hunter advanced class 'Assassin' skills
+        // Hunter advanced class 'Archer' skills
+        // Mage Skills
+        '4':  { name: "Fireball", fullResource: false, resource: 0,  cost: 6, type: "attack",  target: "enemy",      icon: "/images/skills/fireball.webp" },
+        '5':  { name: "Arcane Sacrifice", fullResource: false, resource: 0,  cost: 2, type: "support",  target: "ally_alive",      icon: "/images/skills/arcane_sacrifice.webp" },
+        // Mage advanced class 'Grandmage' skills
+        'adv10': { name: "Mana Collapse", fullResource: false, resource: 0,  cost: 12, type: "attack",  target: "ally_alive",      icon: "/images/advanced_classes/skills/mana_collapse.webp" },    
+        'adv11': { name: "Elemental Dominion", fullResource: true, resource: 5,  cost: 0, type: "attack",  target: "ally_alive",      icon: "/images/advanced_classes/skills/elemental_dominion.webp" },    
+        'adv13': { name: "Astral Cataclysm", fullResource: true, resource: 100,  cost: 15, type: "attack",  target: "ally_alive",      icon: "/images/advanced_classes/skills/astral_cataclysm.webp" },    
+        // Mage advanced class 'Magic Knight' skills
+        // Warrior Skills
+        // Warrior advanced class 'Berserker' skills
+        // Warrior advanced class 'Paladin' skills
     };
 
     // =========================================================================
