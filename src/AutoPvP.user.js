@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto PvP Matchmaking
 // @namespace    https://demonicscans.org/scripts/
-// @version      2.1
+// @version      2.4
 // @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js
 // @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js
 // @description  Automates PvP solo matches with premium UI, background tabs, history, and audio notifications.
@@ -13,55 +13,260 @@
 // ==/UserScript==
 
 (async function () {
-    'use strict';
-    try {
-
+  "use strict";
+  try {
     // =========================================================================
     // --- Skills Dictionary ---
     // =========================================================================
     const PVP_SKILLS = {
-        // Basic Skills
-        '0':  { name: "Slash", fullResource: false, resource: 0,  cost: 0, type: "attack",  target: "enemy",      icon: "/images/skills/slash.webp" },
-        '-1': { name: "Power Slash", fullResource: false, resource: 0,  cost: 9, type: "attack",  target: "enemy",      icon: "/images/skills/power_slash.webp" },
-        // Cleric Skills
-        '8':  { name: "Heal", fullResource: false, resource: 0,  cost: 5, type: "support", target: "ally_alive", icon: "/images/skills/Heal.webp" },
-        '9':  { name: "Judgment Seal", fullResource: false, resource: 0,  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Judgment Seal.webp" },
-        '18':  { name: "Sanctified Breach", fullResource: false, resource: 0,  cost: 3, type: "support",  target: "ally_alive",      icon: "/images/skills/Sanctified Breach.webp" },
-        // Cleric advanced class 'Saint' skills
-        // Cleric advanced class 'Inquisitor' skills
-        // Hunter Skills
-        '6':  { name: "Back Stab", fullResource: false, resource: 0,  cost: 3, type: "attack",  target: "enemy",      icon: "/images/skills/Back Stab.webp" },
-        '7':  { name: "Killer Instinct", fullResource: false, resource: 0,  cost: 5, type: "support",  target: "enemy",      icon: "/images/skills/Killer Instinct.webp" },
-        // Hunter advanced class 'Assassin' skills
-        // Hunter advanced class 'Archer' skills
-        // Mage Skills
-        '4':  { name: "Fireball", fullResource: false, resource: 0,  cost: 6, type: "attack",  target: "enemy",      icon: "/images/skills/fireball.webp" },
-        '5':  { name: "Arcane Sacrifice", fullResource: false, resource: 0,  cost: 2, type: "support",  target: "ally_alive",      icon: "/images/skills/arcane_sacrifice.webp" },
-        // Mage advanced class 'Grandmage' skills
-        'adv10': { name: "Mana Collapse", fullResource: false, resource: 0,  cost: 12, type: "attack",  target: "ally_alive",      icon: "/images/advanced_classes/skills/mana_collapse.webp" },    
-        'adv11': { name: "Elemental Dominion", fullResource: true, resource: 5,  cost: 0, type: "attack",  target: "ally_alive",      icon: "/images/advanced_classes/skills/elemental_dominion.webp" },    
-        'adv13': { name: "Astral Cataclysm", fullResource: true, resource: 100,  cost: 15, type: "attack",  target: "ally_alive",      icon: "/images/advanced_classes/skills/astral_cataclysm.webp" },    
-        // Mage advanced class 'Magic Knight' skills
-        // Warrior Skills
-        // Warrior advanced class 'Berserker' skills
-        // Warrior advanced class 'Paladin' skills
+      Base: {
+        0: {
+          name: "Slash",
+          fullResource: false,
+          resource: 0,
+          cost: 0,
+          type: "attack",
+          target: "enemy",
+          icon: "/images/skills/slash.webp",
+        },
+        "-1": {
+          name: "Power Slash",
+          fullResource: false,
+          resource: 0,
+          cost: 9,
+          type: "attack",
+          target: "enemy",
+          icon: "/images/skills/power_slash.webp",
+        },
+      },
+      Cleric: {
+        Base: {
+          8: {
+            name: "Heal",
+            fullResource: false,
+            resource: 0,
+            cost: 5,
+            type: "support",
+            target: "ally_alive",
+            icon: "/images/skills/Heal.webp",
+          },
+          9: {
+            name: "Judgment Seal",
+            fullResource: false,
+            resource: 0,
+            cost: 3,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/Judgment Seal.webp",
+          },
+          18: {
+            name: "Sanctified Breach",
+            fullResource: false,
+            resource: 0,
+            cost: 3,
+            type: "support",
+            target: "ally_alive",
+            icon: "/images/skills/Sanctified Breach.webp",
+          },
+        },
+        Saint: {},
+        Inquisitor: {},
+      },
+      Hunter: {
+        Base: {
+          6: {
+            name: "Back Stab",
+            fullResource: false,
+            resource: 0,
+            cost: 3,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/Back Stab.webp",
+          },
+          7: {
+            name: "Killer Instinct",
+            fullResource: false,
+            resource: 0,
+            cost: 5,
+            type: "support",
+            target: "enemy",
+            icon: "/images/skills/Killer Instinct.webp",
+          },
+        },
+        Assassin: {},
+        Archer: {},
+      },
+      Mage: {
+        Base: {
+          4: {
+            name: "Fireball",
+            fullResource: false,
+            resource: 0,
+            cost: 6,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/fireball.webp",
+          },
+          5: {
+            name: "Arcane Sacrifice",
+            fullResource: false,
+            resource: 0,
+            cost: 2,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/arcane_sacrifice.webp",
+          },
+        },
+        Grandmage: {
+          "adv:9": {
+            name: "Meteor Sigil",
+            fullResource: false,
+            resource: 0,
+            cost: 6,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/mana_collapse.webp",
+          },
+          "adv:10": {
+            name: "Mana Collapse",
+            fullResource: false,
+            resource: 0,
+            cost: 12,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/mana_collapse.webp",
+          },
+          "adv:11": {
+            name: "Elemental Dominion",
+            fullResource: true,
+            resource: 5,
+            cost: 8,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/elemental_dominion.webp",
+          },
+          "adv:12": {
+            name: "Astral Cataclysm",
+            fullResource: true,
+            resource: 100,
+            cost: 15,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/astral_cataclysm.webp",
+          },
+        },
+        "Magic Knight": {},
+      },
+      Warrior: {
+        Base: {
+          2: {
+            name: "Ironclad Strike",
+            fullResource: false,
+            resource: 0,
+            cost: 6,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/Ironclad Strike.webp",
+          },
+          3: {
+            name: "Warrior Aura",
+            fullResource: false,
+            resource: 0,
+            cost: 6,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/Warrior Aura.webp",
+          },
+          19: {
+            name: "Blood Pact",
+            fullResource: false,
+            resource: 0,
+            cost: 5,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/blood_pact.webp",
+          },
+          20: {
+            name: "Taunt",
+            fullResource: false,
+            resource: 0,
+            cost: 10,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/skills/taunt.webp",
+          },
+        },
+        Berserker: {},
+        Paladin: {
+          "adv:1": {
+            name: "Radiant Guard",
+            fullResource: false,
+            resource: 0,
+            cost: 8,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/radiant_guard.webp",
+          },
+          "adv:2": {
+            name: "Judgment Bash",
+            fullResource: false,
+            resource: 0,
+            cost: 5,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/judgment_bash.webp",
+          },
+          "adv:3": {
+            name: "Aegis Intervention",
+            fullResource: false,
+            resource: 0,
+            cost: 6,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/aegis_intervention.webp",
+          },
+          "adv:4": {
+            name: "Sanctified Berdict",
+            fullResource: true,
+            resource: 100,
+            cost: 12,
+            type: "attack",
+            target: "enemy",
+            icon: "/images/advanced_classes/skills/sanctified_verdict.webp",
+          },
+        },
+      },
     };
+
+    const ALL_SKILLS = {};
+    for (const [cls, advClasses] of Object.entries(PVP_SKILLS)) {
+      if (cls === "Base") {
+        Object.assign(ALL_SKILLS, advClasses);
+      } else {
+        for (const [advCls, skills] of Object.entries(advClasses)) {
+          Object.assign(ALL_SKILLS, skills);
+        }
+      }
+    }
 
     // =========================================================================
     // --- Config & State ---
     // =========================================================================
     const DEFAULT_PVP_CONFIG = {
-        basicSkillId: '0',
-        chosenSkillId: '9',
-        supportSkillId: '8',
-        healThreshold: 50,
-        autoQueue: true,
-        pollInterval: 1000,
-        allowAnySkill: false,
-        soundMatchEnd: true,
-        soundNoTokens: true,
-        retryNoTokens: false,
-        showStandbyWarning: true
+      baseClass: "Base",
+      advancedClass: "Base",
+      basicSkillId: "0",
+      chosenSkillId: "9",
+      supportSkillId: "8",
+      classMemory: {}, // Store memory of selections: classMemory['Mage_Grandmage'] = { basic: '0', main: 'adv10', supp: '5' }
+      healThreshold: 50,
+      autoQueue: true,
+      pollInterval: 1000,
+      allowAnySkill: false,
+      soundMatchEnd: true,
+      soundNoTokens: true,
+      retryNoTokens: false,
+      showStandbyWarning: true,
     };
 
     let config = await GM.getValue("veyra_pvp2_config", null);
@@ -74,102 +279,110 @@
     let myTargetKey = null;
     let abortController = null;
     let myTabId = sessionStorage.getItem("veyra_pvp2_tab_id");
-    const navType = performance.getEntriesByType('navigation')[0]?.type;
-    
+    const navType = performance.getEntriesByType("navigation")[0]?.type;
+
     // If the tab was duplicated, it copies the sessionStorage but triggers a 'navigate' event.
     // We only trust the saved ID if this was a strict 'reload' (F5 refresh).
-    if (!myTabId || navType !== 'reload') {
-        myTabId = Math.random().toString(36).substr(2, 9);
-        sessionStorage.setItem("veyra_pvp2_tab_id", myTabId);
+    if (!myTabId || navType !== "reload") {
+      myTabId = Math.random().toString(36).substr(2, 9);
+      sessionStorage.setItem("veyra_pvp2_tab_id", myTabId);
     }
-    
+
     // Live match state for resumption
     let activeMatchState = await GM.getValue("veyra_pvp2_active_match", null);
-    if (!activeMatchState) activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
+    if (!activeMatchState)
+      activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
 
     // Session stats & History
     let sessionStats = await GM.getValue("veyra_pvp2_stats", null);
-    if (!sessionStats) sessionStats = { matches: 0, wins: 0, losses: 0, history: [], globalSkills: {} };
+    if (!sessionStats)
+      sessionStats = {
+        matches: 0,
+        wins: 0,
+        losses: 0,
+        history: [],
+        globalSkills: {},
+      };
     if (!sessionStats.globalSkills) sessionStats.globalSkills = {};
 
     async function saveStats() {
-        await GM.setValue("veyra_pvp2_stats", sessionStats);
+      await GM.setValue("veyra_pvp2_stats", sessionStats);
     }
     async function saveConfig() {
-        await GM.setValue("veyra_pvp2_config", config);
+      await GM.setValue("veyra_pvp2_config", config);
     }
     async function saveActiveMatch() {
-        await GM.setValue("veyra_pvp2_active_match", activeMatchState);
+      await GM.setValue("veyra_pvp2_active_match", activeMatchState);
     }
 
     let isMaster = false;
     // Lock logic is now handled by initLockManager at the bottom
 
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     function getCookie(name) {
-        const value = '; ' + document.cookie;
-        const parts = value.split('; ' + name + '=');
-        if (parts.length === 2) return parts.pop().split(';').shift();
-        return null;
+      const value = "; " + document.cookie;
+      const parts = value.split("; " + name + "=");
+      if (parts.length === 2) return parts.pop().split(";").shift();
+      return null;
     }
 
     // =========================================================================
     // --- Audio ---
     // =========================================================================
     function playChime() {
-        if (!config.soundMatchEnd) return;
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const playTone = (freq, time, dur) => {
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.type = 'sine';
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0, time);
-                gain.gain.linearRampToValueAtTime(0.5, time + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
-                osc.start(time);
-                osc.stop(time + dur);
-            };
-            const now = ctx.currentTime;
-            playTone(523.25, now, 0.4); 
-            playTone(659.25, now + 0.2, 0.6); 
-        } catch(e) {}
+      if (!config.soundMatchEnd) return;
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const playTone = (freq, time, dur) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = "sine";
+          osc.frequency.value = freq;
+          gain.gain.setValueAtTime(0, time);
+          gain.gain.linearRampToValueAtTime(0.5, time + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.01, time + dur);
+          osc.start(time);
+          osc.stop(time + dur);
+        };
+        const now = ctx.currentTime;
+        playTone(523.25, now, 0.4);
+        playTone(659.25, now + 0.2, 0.6);
+      } catch (e) {}
     }
 
     function playErrorBeep() {
-        if (!config.soundNoTokens) return;
-        try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = ctx.createOscillator();
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(150, ctx.currentTime);
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            gain.gain.setValueAtTime(0.3, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.5);
-        } catch(e) {}
+      if (!config.soundNoTokens) return;
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      } catch (e) {}
     }
 
     // =========================================================================
     // --- UI ---
     // =========================================================================
     async function setupUI() {
-        let savedUI = await GM.getValue("veyra_pvp2_ui", null);
-        if (!savedUI || typeof savedUI !== 'object') savedUI = {};
-        if (!savedUI.left) savedUI.left = 'calc(100vw - 420px)';
-        if (!savedUI.top) savedUI.top = '50px';
-        if (!savedUI.width) savedUI.width = '400px';
-        if (savedUI.minimized === undefined) savedUI.minimized = false;
-        if (!savedUI.activeTab) savedUI.activeTab = 'matchmaking';
+      let savedUI = await GM.getValue("veyra_pvp2_ui", null);
+      if (!savedUI || typeof savedUI !== "object") savedUI = {};
+      if (!savedUI.left) savedUI.left = "calc(100vw - 420px)";
+      if (!savedUI.top) savedUI.top = "50px";
+      if (!savedUI.width) savedUI.width = "400px";
+      if (savedUI.minimized === undefined) savedUI.minimized = false;
+      if (!savedUI.activeTab) savedUI.activeTab = "matchmaking";
 
-        const css = `
+      const css = `
         #pvp-container {
             position: fixed;
             top: ${savedUI.top};
@@ -248,33 +461,68 @@
         .pvp-history-win { border-left: 4px solid #4ade80; }
         .pvp-history-loss { border-left: 4px solid #f87171; }
         `;
-        const styleEl = document.createElement('style');
-        styleEl.textContent = css;
-        document.head.appendChild(styleEl);
+      const styleEl = document.createElement("style");
+      styleEl.textContent = css;
+      document.head.appendChild(styleEl);
 
-        const getOpts = (filterFn, selectedId) => Object.entries(PVP_SKILLS)
-            .filter(filterFn)
-            .map(([id, s]) => '<option value="' + id + '"' + (selectedId === id ? ' selected' : '') + '>' + s.name + ' (' + s.cost + ')' + '</option>')
-            .join('');
+      const getFilteredSkillsArr = () => {
+        let arr = Object.entries(PVP_SKILLS["Base"]);
+        if (config.baseClass !== "Base" && PVP_SKILLS[config.baseClass]) {
+          if (PVP_SKILLS[config.baseClass]["Base"]) {
+            arr = arr.concat(
+              Object.entries(PVP_SKILLS[config.baseClass]["Base"]),
+            );
+          }
+          if (
+            config.advancedClass !== "Base" &&
+            PVP_SKILLS[config.baseClass][config.advancedClass]
+          ) {
+            arr = arr.concat(
+              Object.entries(
+                PVP_SKILLS[config.baseClass][config.advancedClass],
+              ),
+            );
+          }
+        }
+        return arr;
+      };
 
-        const container = document.createElement('div');
-        container.id = 'pvp-container';
-        if (savedUI.minimized) container.classList.add('pvp-minimized');
+      const getOpts = (filterFn, selectedId) =>
+        getFilteredSkillsArr()
+          .filter(filterFn)
+          .map(
+            ([id, s]) =>
+              '<option value="' +
+              id +
+              '"' +
+              (selectedId === id ? " selected" : "") +
+              ">" +
+              s.name +
+              " (" +
+              s.cost +
+              ")" +
+              "</option>",
+          )
+          .join("");
 
-        container.innerHTML = `
+      const container = document.createElement("div");
+      container.id = "pvp-container";
+      if (savedUI.minimized) container.classList.add("pvp-minimized");
+
+      container.innerHTML = `
             <div id="pvp-header">
                 <div id="pvp-title">⚔️ AutoPvP 2.0</div>
-                <button class="pvp-btn-minimize" id="pvp-toggle-min">${savedUI.minimized ? '+' : '×'}</button>
+                <button class="pvp-btn-minimize" id="pvp-toggle-min">${savedUI.minimized ? "+" : "×"}</button>
             </div>
             <div class="pvp-tabs">
-                <div class="pvp-tab ${savedUI.activeTab === 'matchmaking' ? 'active' : ''}" data-tab="matchmaking">Match</div>
-                <div class="pvp-tab ${savedUI.activeTab === 'history' ? 'active' : ''}" data-tab="history">Historial</div>
-                <div class="pvp-tab ${savedUI.activeTab === 'config' ? 'active' : ''}" data-tab="config">Config</div>
+                <div class="pvp-tab ${savedUI.activeTab === "matchmaking" ? "active" : ""}" data-tab="matchmaking">Match</div>
+                <div class="pvp-tab ${savedUI.activeTab === "history" ? "active" : ""}" data-tab="history">Historial</div>
+                <div class="pvp-tab ${savedUI.activeTab === "config" ? "active" : ""}" data-tab="config">Config</div>
             </div>
             <div id="pvp-content">
                 
                 <!-- MATCHMAKING TAB -->
-                <div class="pvp-tab-content ${savedUI.activeTab === 'matchmaking' ? 'active' : ''}" id="tab-matchmaking">
+                <div class="pvp-tab-content ${savedUI.activeTab === "matchmaking" ? "active" : ""}" id="tab-matchmaking">
                     <div class="pvp-section" style="display:flex; justify-content:space-between; font-weight:bold;">
                         <span style="color:#4ade80" id="pvp-my-hp">Me: ?/?</span>
                         <span style="color:#f87171" id="pvp-enemy-hp">Enemy: ?/?</span>
@@ -287,11 +535,11 @@
                         <div class="pvp-section-title">Session Skills Used</div>
                         <div id="pvp-global-skills-match" style="font-size:12px; color:#cdbfba;"></div>
                     </div>
-                    <button id="pvp-start-btn" class="pvp-btn ${isRunning ? 'pvp-btn-stop' : 'pvp-btn-start'}">${isRunning ? 'Stop AutoPvP' : 'Start AutoPvP'}</button>
+                    <button id="pvp-start-btn" class="pvp-btn ${isRunning ? "pvp-btn-stop" : "pvp-btn-start"}">${isRunning ? "Stop AutoPvP" : "Start AutoPvP"}</button>
                 </div>
 
                 <!-- HISTORY TAB -->
-                <div class="pvp-tab-content ${savedUI.activeTab === 'history' ? 'active' : ''}" id="tab-history">
+                <div class="pvp-tab-content ${savedUI.activeTab === "history" ? "active" : ""}" id="tab-history">
                     <div class="pvp-section" style="display:flex; justify-content:space-around; font-size:14px; font-weight:bold;">
                         <span>Total: <span id="hist-total">${sessionStats.matches}</span></span>
                         <span style="color:#4ade80">W: <span id="hist-wins">${sessionStats.wins}</span></span>
@@ -306,50 +554,66 @@
                 </div>
 
                 <!-- CONFIG TAB -->
-                <div class="pvp-tab-content ${savedUI.activeTab === 'config' ? 'active' : ''}" id="tab-config">
+                <div class="pvp-tab-content ${savedUI.activeTab === "config" ? "active" : ""}" id="tab-config">
                     <div class="pvp-section">
-                        <div class="pvp-section-title">Combat Skills</div>
+                        <div class="pvp-section-title">Class Filters</div>
+                        <div class="pvp-row">
+                            <label>Base Class</label>
+                            <select id="pvp-base-class">
+                                ${Object.keys(PVP_SKILLS)
+                                  .map(
+                                    (k) =>
+                                      `<option value="${k}" ${config.baseClass === k ? "selected" : ""}>${k}</option>`,
+                                  )
+                                  .join("")}
+                            </select>
+                        </div>
+                        <div class="pvp-row">
+                            <label>Advanced Class</label>
+                            <select id="pvp-adv-class"></select>
+                        </div>
+                        <div class="pvp-section-title" style="margin-top:10px;">Combat Skills</div>
                         <div class="pvp-row">
                             <label>Basic Attack (0-cost)</label>
-                            <select id="pvp-basic">${getOpts(([,s]) => s.cost === 0, config.basicSkillId)}</select>
+                            <select id="pvp-basic">${getOpts(([, s]) => s.cost === 0, config.basicSkillId)}</select>
                         </div>
                         <div class="pvp-row">
                             <label>Main Skill</label>
-                            <select id="pvp-main">${getOpts(([,s]) => config.allowAnySkill || s.type === 'attack', config.chosenSkillId)}</select>
+                            <select id="pvp-main">${getOpts(([, s]) => config.allowAnySkill || s.type === "attack", config.chosenSkillId)}</select>
                         </div>
                         <div class="pvp-row">
                             <label>Support Skill</label>
-                            <select id="pvp-support">${getOpts(([,s]) => config.allowAnySkill || s.type === 'support', config.supportSkillId)}</select>
+                            <select id="pvp-support">${getOpts(([, s]) => config.allowAnySkill || s.type === "support", config.supportSkillId)}</select>
                         </div>
                         <div class="pvp-row">
                             <label>Support HP %</label>
                             <input type="number" id="pvp-threshold" value="${config.healThreshold}" min="0" max="100">
                         </div>
                         <div class="pvp-checkbox-row">
-                            <input type="checkbox" id="pvp-any-skill" ${config.allowAnySkill ? 'checked' : ''}>
+                            <input type="checkbox" id="pvp-any-skill" ${config.allowAnySkill ? "checked" : ""}>
                             <label>Allow any skill on any field</label>
                         </div>
                     </div>
                     <div class="pvp-section">
                         <div class="pvp-section-title">System</div>
                         <div class="pvp-checkbox-row">
-                            <input type="checkbox" id="pvp-autoqueue" ${config.autoQueue ? 'checked' : ''}>
+                            <input type="checkbox" id="pvp-autoqueue" ${config.autoQueue ? "checked" : ""}>
                             <label>Auto-queue next match</label>
                         </div>
                         <div class="pvp-checkbox-row">
-                            <input type="checkbox" id="pvp-sound-end" ${config.soundMatchEnd ? 'checked' : ''}>
+                            <input type="checkbox" id="pvp-sound-end" ${config.soundMatchEnd ? "checked" : ""}>
                             <label>Play sound on Match End</label>
                         </div>
                         <div class="pvp-checkbox-row">
-                            <input type="checkbox" id="pvp-sound-tokens" ${config.soundNoTokens ? 'checked' : ''}>
+                            <input type="checkbox" id="pvp-sound-tokens" ${config.soundNoTokens ? "checked" : ""}>
                             <label>Play sound when Out of Tokens</label>
                         </div>
                         <div class="pvp-checkbox-row">
-                            <input type="checkbox" id="pvp-retry-tokens" ${config.retryNoTokens ? 'checked' : ''}>
+                            <input type="checkbox" id="pvp-retry-tokens" ${config.retryNoTokens ? "checked" : ""}>
                             <label>Keep retrying when Out of Tokens (checks every 60s)</label>
                         </div>
                         <div class="pvp-checkbox-row">
-                            <input type="checkbox" id="pvp-standby-warn" ${config.showStandbyWarning ? 'checked' : ''}>
+                            <input type="checkbox" id="pvp-standby-warn" ${config.showStandbyWarning ? "checked" : ""}>
                             <label>Show visual warning on Standby tabs</label>
                         </div>
                     </div>
@@ -357,119 +621,319 @@
 
             </div>
         `;
-        document.body.appendChild(container);
+      document.body.appendChild(container);
+
+      const updateAdvClassDropdown = () => {
+        const advSelect = document.getElementById("pvp-adv-class");
+        if (!advSelect) return;
+
+        const advClasses = Object.keys(
+          PVP_SKILLS[config.baseClass] || {},
+        ).filter((k) => k !== "Base");
+
+        let html = `<option value="Base" ${config.advancedClass === "Base" ? "selected" : ""}>Base (None)</option>`;
+
+        if (config.baseClass !== "Base") {
+          advClasses.forEach((c) => {
+            html += `<option value="${c}" ${config.advancedClass === c ? "selected" : ""}>${c}</option>`;
+          });
+        }
+
+        advSelect.innerHTML = html;
+      };
+      updateAdvClassDropdown();
+
+      const updateSkillsDropdowns = async () => {
+        const memKey = config.baseClass + "_" + config.advancedClass;
+
+        if (config.classMemory[memKey]) {
+          if (config.classMemory[memKey].basic)
+            config.basicSkillId = config.classMemory[memKey].basic;
+          if (config.classMemory[memKey].main)
+            config.chosenSkillId = config.classMemory[memKey].main;
+          if (config.classMemory[memKey].supp)
+            config.supportSkillId = config.classMemory[memKey].supp;
+        }
+
+        const arr = getFilteredSkillsArr();
+        const ensureValid = (currentId, filterFn) => {
+          const validIds = arr.filter(filterFn).map((x) => x[0]);
+          if (validIds.includes(currentId)) return currentId;
+          return validIds.length > 0 ? validIds[0] : "";
+        };
+
+        config.basicSkillId = ensureValid(
+          config.basicSkillId,
+          ([, s]) => s.cost === 0,
+        );
+        config.chosenSkillId = ensureValid(
+          config.chosenSkillId,
+          ([, s]) => config.allowAnySkill || s.type === "attack",
+        );
+        config.supportSkillId = ensureValid(
+          config.supportSkillId,
+          ([, s]) => config.allowAnySkill || s.type === "support",
+        );
+
+        document.getElementById("pvp-basic").innerHTML = getOpts(
+          ([, s]) => s.cost === 0,
+          config.basicSkillId,
+        );
+        document.getElementById("pvp-main").innerHTML = getOpts(
+          ([, s]) => config.allowAnySkill || s.type === "attack",
+          config.chosenSkillId,
+        );
+        document.getElementById("pvp-support").innerHTML = getOpts(
+          ([, s]) => config.allowAnySkill || s.type === "support",
+          config.supportSkillId,
+        );
+
+        await saveConfig();
+      };
+
+      // Initial update to ensure valid selections
+      updateSkillsDropdowns(); // Non-blocking is fine here on init
+
+      document.getElementById("pvp-base-class").onchange = async (e) => {
+        config.baseClass = e.target.value;
+        if (!config.advClassMemory) config.advClassMemory = {};
+        config.advancedClass =
+          config.advClassMemory[config.baseClass] || "Base";
+        updateAdvClassDropdown();
+        await updateSkillsDropdowns();
+      };
+
+      document.getElementById("pvp-adv-class").onchange = async (e) => {
+        config.advancedClass = e.target.value;
+        if (!config.advClassMemory) config.advClassMemory = {};
+        config.advClassMemory[config.baseClass] = config.advancedClass;
+        await updateSkillsDropdowns();
+      };
+
+      renderHistory();
+      renderGlobalSkills();
+
+      // Drag
+      const header = document.getElementById("pvp-header");
+      let isDragging = false,
+        startX,
+        startY,
+        initialX,
+        initialY;
+
+      // Bounds Checking
+      const checkBounds = () => {
+        const rect = container.getBoundingClientRect();
+        let newTop = rect.top;
+        let newLeft = rect.left;
+        let changed = false;
+
+        console.log(
+          "Checking bounds: ",
+          rect,
+          window.innerWidth,
+          window.innerHeight,
+        );
+        console.log("Current position: ", newLeft, newTop);
+
+        // Prevent left side from going off-screen
+        if (newLeft < 0) {
+          newLeft = 20;
+          changed = true;
+        }
+        // Prevent right side from going off-screen
+        else if (newLeft + rect.width > window.innerWidth) {
+          newLeft = Math.max(20, window.innerWidth - rect.width - 40);
+          changed = true;
+        }
+
+        // Prevent top from going off-screen
+        if (newTop < 0) {
+          newTop = 20;
+          changed = true;
+        }
+        // Prevent bottom from going off-screen
+        else if (newTop + rect.height > window.innerHeight) {
+          newTop = Math.max(20, window.innerHeight - rect.height - 20);
+          changed = true;
+        }
+
+        if (changed) {
+          container.style.top = newTop + "px";
+          container.style.left = newLeft + "px";
+        }
+
+        console.log(
+          "Checking bounds 2: ",
+          rect,
+          window.innerWidth,
+          window.innerHeight,
+        );
+        console.log("Current position 2: ", newLeft, newTop);
+
+        return changed;
+      };
+
+      header.onpointerdown = (e) => {
+        if (e.target.id === "pvp-toggle-min") return;
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialX = container.offsetLeft;
+        initialY = container.offsetTop;
+        header.style.cursor = "grabbing";
+        try {
+          header.setPointerCapture(e.pointerId);
+        } catch (err) {}
+      };
+
+      header.onpointermove = (e) => {
+        if (!isDragging) return;
+        container.style.left = initialX + e.clientX - startX + "px";
+        container.style.top = initialY + e.clientY - startY + "px";
+      };
+
+      const stopDrag = async (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        header.style.cursor = "grab";
+        try {
+          header.releasePointerCapture(e.pointerId);
+        } catch (err) {}
+
+        checkBounds(); // Keep it in bounds when let go
+
+        if (container.style.left) savedUI.left = container.style.left;
+        if (container.style.top) savedUI.top = container.style.top;
+        await GM.setValue("veyra_pvp2_ui", savedUI);
+      };
+
+      header.onpointerup = stopDrag;
+      header.onpointercancel = stopDrag;
+
+      // Check bounds on load and resize
+      const enforceBounds = () => {
+        if (checkBounds()) {
+          savedUI.left = container.style.left;
+          savedUI.top = container.style.top;
+          GM.setValue("veyra_pvp2_ui", savedUI);
+        }
+      };
+      enforceBounds();
+      setTimeout(enforceBounds, 500);
+      window.addEventListener("resize", enforceBounds);
+
+      // Tabs
+      document.querySelectorAll(".pvp-tab").forEach((tab) => {
+        tab.onclick = async () => {
+          document
+            .querySelectorAll(".pvp-tab, .pvp-tab-content")
+            .forEach((el) => el.classList.remove("active"));
+          tab.classList.add("active");
+          const tName = tab.getAttribute("data-tab");
+          document.getElementById("tab-" + tName).classList.add("active");
+          savedUI.activeTab = tName;
+          await GM.setValue("veyra_pvp2_ui", savedUI);
+        };
+      });
+
+      // Min/Max
+      document.getElementById("pvp-toggle-min").onclick = async () => {
+        container.classList.toggle("pvp-minimized");
+        savedUI.minimized = container.classList.contains("pvp-minimized");
+        document.getElementById("pvp-toggle-min").innerText = savedUI.minimized
+          ? "+"
+          : "×";
+        await GM.setValue("veyra_pvp2_ui", savedUI);
+      };
+
+      // Start/Stop
+      document.getElementById("pvp-start-btn").onclick = async (e) => {
+        isRunning = !isRunning;
+        await GM.setValue("veyra_pvp2_running", isRunning);
+        e.target.innerText = isRunning ? "Stop AutoPvP" : "Start AutoPvP";
+        e.target.className = isRunning
+          ? "pvp-btn pvp-btn-stop"
+          : "pvp-btn pvp-btn-start";
+        if (isRunning) mainLoop();
+        else if (abortController) abortController.abort();
+      };
+
+      // Config Listeners
+      const listen = (id, key, isCheckbox, isNum) => {
+        document.getElementById(id).onchange = async (e) => {
+          let val = isCheckbox ? e.target.checked : e.target.value;
+          if (isNum) val = Number(val);
+          config[key] = val;
+
+          if (
+            ["basicSkillId", "chosenSkillId", "supportSkillId"].includes(key)
+          ) {
+            const memKey = config.baseClass + "_" + config.advancedClass;
+            if (!config.classMemory[memKey]) config.classMemory[memKey] = {};
+            if (key === "basicSkillId") config.classMemory[memKey].basic = val;
+            if (key === "chosenSkillId") config.classMemory[memKey].main = val;
+            if (key === "supportSkillId") config.classMemory[memKey].supp = val;
+          }
+
+          await saveConfig();
+
+          // If 'any skill' changed, re-render dropdowns
+          if (key === "allowAnySkill") {
+            await updateSkillsDropdowns();
+          }
+        };
+      };
+      listen("pvp-basic", "basicSkillId", false, false);
+      listen("pvp-main", "chosenSkillId", false, false);
+      listen("pvp-support", "supportSkillId", false, false);
+      listen("pvp-threshold", "healThreshold", false, true);
+      listen("pvp-any-skill", "allowAnySkill", true, false);
+      listen("pvp-autoqueue", "autoQueue", true, false);
+      listen("pvp-sound-end", "soundMatchEnd", true, false);
+      listen("pvp-sound-tokens", "soundNoTokens", true, false);
+      listen("pvp-retry-tokens", "retryNoTokens", true, false);
+      listen("pvp-standby-warn", "showStandbyWarning", true, false);
+
+      // Clear History
+      document.getElementById("pvp-clear-hist").onclick = async () => {
+        sessionStats.matches = 0;
+        sessionStats.wins = 0;
+        sessionStats.losses = 0;
+        sessionStats.history = [];
+        sessionStats.globalSkills = {};
+        await saveStats();
+        document.getElementById("hist-total").innerText = 0;
+        document.getElementById("hist-wins").innerText = 0;
+        document.getElementById("hist-losses").innerText = 0;
         renderHistory();
         renderGlobalSkills();
-
-        // Drag
-        const header = document.getElementById('pvp-header');
-        let isDragging = false, startX, startY, initialX, initialY;
-        header.onpointerdown = (e) => {
-            if (e.target.id === 'pvp-toggle-min') return;
-            e.preventDefault(); isDragging = true;
-            startX = e.clientX; startY = e.clientY;
-            initialX = container.offsetLeft; initialY = container.offsetTop;
-            header.style.cursor = "grabbing";
-            try { header.setPointerCapture(e.pointerId); } catch(err){}
-        };
-        header.onpointermove = (e) => {
-            if (!isDragging) return;
-            container.style.left = (initialX + e.clientX - startX) + 'px';
-            container.style.top = (initialY + e.clientY - startY) + 'px';
-        };
-        const stopDrag = async (e) => {
-            if (!isDragging) return;
-            isDragging = false; header.style.cursor = "grab";
-            try { header.releasePointerCapture(e.pointerId); } catch(err){}
-            if (container.style.left) savedUI.left = container.style.left;
-            if (container.style.top) savedUI.top = container.style.top;
-            await GM.setValue("veyra_pvp2_ui", savedUI);
-        };
-        header.onpointerup = stopDrag;
-        header.onpointercancel = stopDrag;
-
-        // Tabs
-        document.querySelectorAll('.pvp-tab').forEach(tab => {
-            tab.onclick = async () => {
-                document.querySelectorAll('.pvp-tab, .pvp-tab-content').forEach(el => el.classList.remove('active'));
-                tab.classList.add('active');
-                const tName = tab.getAttribute('data-tab');
-                document.getElementById('tab-' + tName).classList.add('active');
-                savedUI.activeTab = tName;
-                await GM.setValue("veyra_pvp2_ui", savedUI);
-            };
-        });
-
-        // Min/Max
-        document.getElementById('pvp-toggle-min').onclick = async () => {
-            container.classList.toggle('pvp-minimized');
-            savedUI.minimized = container.classList.contains('pvp-minimized');
-            document.getElementById('pvp-toggle-min').innerText = savedUI.minimized ? '+' : '×';
-            await GM.setValue("veyra_pvp2_ui", savedUI);
-        };
-
-        // Start/Stop
-        document.getElementById('pvp-start-btn').onclick = async (e) => {
-            isRunning = !isRunning;
-            await GM.setValue("veyra_pvp2_running", isRunning);
-            e.target.innerText = isRunning ? 'Stop AutoPvP' : 'Start AutoPvP';
-            e.target.className = isRunning ? 'pvp-btn pvp-btn-stop' : 'pvp-btn pvp-btn-start';
-            if (isRunning) mainLoop();
-            else if (abortController) abortController.abort();
-        };
-
-        // Config Listeners
-        const listen = (id, key, isCheckbox, isNum) => {
-            document.getElementById(id).onchange = async (e) => {
-                let val = isCheckbox ? e.target.checked : e.target.value;
-                if (isNum) val = Number(val);
-                config[key] = val;
-                await saveConfig();
-                
-                // If 'any skill' changed, re-render dropdowns
-                if (key === 'allowAnySkill') {
-                    document.getElementById('pvp-main').innerHTML = getOpts(([,s]) => config.allowAnySkill || s.type === 'attack', config.chosenSkillId);
-                    document.getElementById('pvp-support').innerHTML = getOpts(([,s]) => config.allowAnySkill || s.type === 'support', config.supportSkillId);
-                }
-            };
-        };
-        listen('pvp-basic', 'basicSkillId', false, false);
-        listen('pvp-main', 'chosenSkillId', false, false);
-        listen('pvp-support', 'supportSkillId', false, false);
-        listen('pvp-threshold', 'healThreshold', false, true);
-        listen('pvp-any-skill', 'allowAnySkill', true, false);
-        listen('pvp-autoqueue', 'autoQueue', true, false);
-        listen('pvp-sound-end', 'soundMatchEnd', true, false);
-        listen('pvp-sound-tokens', 'soundNoTokens', true, false);
-        listen('pvp-retry-tokens', 'retryNoTokens', true, false);
-        listen('pvp-standby-warn', 'showStandbyWarning', true, false);
-
-        // Clear History
-        document.getElementById('pvp-clear-hist').onclick = async () => {
-            sessionStats.matches = 0; sessionStats.wins = 0; sessionStats.losses = 0; sessionStats.history = []; sessionStats.globalSkills = {};
-            await saveStats();
-            document.getElementById('hist-total').innerText = 0;
-            document.getElementById('hist-wins').innerText = 0;
-            document.getElementById('hist-losses').innerText = 0;
-            renderHistory();
-            renderGlobalSkills();
-        };
+      };
     }
 
     function renderHistory() {
-        const list = document.getElementById('pvp-history-list');
-        if (!list) return;
-        if (sessionStats.history.length === 0) {
-            list.innerHTML = '<div style="opacity:0.5; text-align:center;">No history yet.</div>';
-            return;
-        }
-        list.innerHTML = sessionStats.history.map(m => {
-            const cls = m.result === 'Win' ? 'pvp-history-win' : 'pvp-history-loss';
-            const resColor = m.result === 'Win' ? '#4ade80' : '#f87171';
-            const skillsStr = Object.entries(m.skills).length > 0
-                ? '<ul style="margin: 2px 0 0 15px; padding: 0;">' + Object.entries(m.skills).map(([k,v]) => `<li>${PVP_SKILLS[k]?.name || k} x${v}</li>`).join('') + '</ul>'
-                : 'None';
-            return `
+      const list = document.getElementById("pvp-history-list");
+      if (!list) return;
+      if (sessionStats.history.length === 0) {
+        list.innerHTML =
+          '<div style="opacity:0.5; text-align:center;">No history yet.</div>';
+        return;
+      }
+      list.innerHTML = sessionStats.history
+        .map((m) => {
+          const cls =
+            m.result === "Win" ? "pvp-history-win" : "pvp-history-loss";
+          const resColor = m.result === "Win" ? "#4ade80" : "#f87171";
+          const skillsStr =
+            Object.entries(m.skills).length > 0
+              ? '<ul style="margin: 2px 0 0 15px; padding: 0;">' +
+                Object.entries(m.skills)
+                  .map(([k, v]) => `<li>${ALL_SKILLS[k]?.name || k} x${v}</li>`)
+                  .join("") +
+                "</ul>"
+              : "None";
+          return `
                 <div class="pvp-history-item ${cls}">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
                         <strong>Match #${m.id}</strong>
@@ -479,414 +943,548 @@
                     <div style="color:#94a3b8; font-size:11px; margin-top:4px;">Skills: ${skillsStr}</div>
                 </div>
             `;
-        }).join('');
+        })
+        .join("");
     }
 
     function renderGlobalSkills() {
-        const skillsStr = Object.entries(sessionStats.globalSkills || {}).length > 0 
-            ? '<ul style="margin: 2px 0 0 15px; padding: 0;">' + Object.entries(sessionStats.globalSkills).map(([k,v]) => `<li>${PVP_SKILLS[k]?.name || k} x${v}</li>`).join('') + '</ul>'
-            : 'None';
-        
-        const mBox = document.getElementById('pvp-global-skills-match');
-        const hBox = document.getElementById('pvp-global-skills-hist');
-        if (mBox) mBox.innerHTML = skillsStr;
-        if (hBox) hBox.innerHTML = skillsStr;
+      const skillsStr =
+        Object.entries(sessionStats.globalSkills || {}).length > 0
+          ? '<ul style="margin: 2px 0 0 15px; padding: 0;">' +
+            Object.entries(sessionStats.globalSkills)
+              .map(([k, v]) => `<li>${ALL_SKILLS[k]?.name || k} x${v}</li>`)
+              .join("") +
+            "</ul>"
+          : "None";
+
+      const mBox = document.getElementById("pvp-global-skills-match");
+      const hBox = document.getElementById("pvp-global-skills-hist");
+      if (mBox) mBox.innerHTML = skillsStr;
+      if (hBox) hBox.innerHTML = skillsStr;
     }
 
     // =========================================================================
     // --- UI Helpers ---
     // =========================================================================
     function setStatus(text, cssClass) {
-        const box = document.getElementById('pvp-status-box');
-        if (!box) return;
-        const cls = cssClass ? ` class="pvp-status-${cssClass}"` : '';
-        box.innerHTML = `<p${cls}>${text}</p>`;
-        box.scrollTop = box.scrollHeight;
+      const box = document.getElementById("pvp-status-box");
+      if (!box) return;
+      const cls = cssClass ? ` class="pvp-status-${cssClass}"` : "";
+      box.innerHTML = `<p${cls}>${text}</p>`;
+      box.scrollTop = box.scrollHeight;
     }
 
     function appendStatus(text, cssClass) {
-        const box = document.getElementById('pvp-status-box');
-        if (!box) return;
-        const ps = box.querySelectorAll('p');
-        if (ps.length >= 15) ps[0].remove();
-        const p = document.createElement('p');
-        if (cssClass) p.className = `pvp-status-${cssClass}`;
-        p.textContent = text;
-        p.style.margin = "2px 0";
-        box.appendChild(p);
-        box.scrollTop = box.scrollHeight;
+      const box = document.getElementById("pvp-status-box");
+      if (!box) return;
+      const ps = box.querySelectorAll("p");
+      if (ps.length >= 15) ps[0].remove();
+      const p = document.createElement("p");
+      if (cssClass) p.className = `pvp-status-${cssClass}`;
+      p.textContent = text;
+      p.style.margin = "2px 0";
+      box.appendChild(p);
+      box.scrollTop = box.scrollHeight;
     }
 
     function updateHealthUI(myHp, myMax, enemyHp, enemyMax) {
-        const el1 = document.getElementById('pvp-my-hp');
-        const el2 = document.getElementById('pvp-enemy-hp');
-        if (el1 && myMax) el1.textContent = `Me: ${myHp}/${myMax}`;
-        if (el2 && enemyMax) el2.textContent = `Enemy: ${enemyHp}/${enemyMax}`;
+      const el1 = document.getElementById("pvp-my-hp");
+      const el2 = document.getElementById("pvp-enemy-hp");
+      if (el1 && myMax) el1.textContent = `Me: ${myHp}/${myMax}`;
+      if (el2 && enemyMax) el2.textContent = `Enemy: ${enemyHp}/${enemyMax}`;
     }
 
     function pushHistory(matchId, resultStr, turnCount, skillUsageObj) {
-        sessionStats.matches++;
-        if (resultStr === 'Win') sessionStats.wins++;
-        else sessionStats.losses++;
+      sessionStats.matches++;
+      if (resultStr === "Win") sessionStats.wins++;
+      else sessionStats.losses++;
 
-        sessionStats.history.unshift({
-            id: matchId,
-            result: resultStr,
-            turns: turnCount,
-            skills: JSON.parse(JSON.stringify(skillUsageObj)),
-            time: new Date().toLocaleTimeString()
-        });
-        if (sessionStats.history.length > 10) sessionStats.history.pop();
-        
-        document.getElementById('hist-total').innerText = sessionStats.matches;
-        document.getElementById('hist-wins').innerText = sessionStats.wins;
-        document.getElementById('hist-losses').innerText = sessionStats.losses;
-        renderHistory();
-        saveStats(); // Note: No await here but it's safe to run in background
+      sessionStats.history.unshift({
+        id: matchId,
+        result: resultStr,
+        turns: turnCount,
+        skills: JSON.parse(JSON.stringify(skillUsageObj)),
+        time: new Date().toLocaleTimeString(),
+      });
+      if (sessionStats.history.length > 10) sessionStats.history.pop();
+
+      document.getElementById("hist-total").innerText = sessionStats.matches;
+      document.getElementById("hist-wins").innerText = sessionStats.wins;
+      document.getElementById("hist-losses").innerText = sessionStats.losses;
+      renderHistory();
+      saveStats(); // Note: No await here but it's safe to run in background
     }
 
     // =========================================================================
     // --- API Functions (with robust error handling) ---
     // =========================================================================
-    const BASE_URL = 'https://demonicscans.org';
+    const BASE_URL = "https://demonicscans.org";
 
     async function safeFetch(url, options) {
-        try {
-            const resp = await fetch(url, options);
-            if (!resp.ok) {
-                return { status: 'error', message: `HTTP Error ${resp.status}`, ok: false };
-            }
-            return await resp.json();
-        } catch (e) {
-            return { status: 'error', message: e.message || 'Network Timeout/Failure', ok: false };
+      try {
+        const resp = await fetch(url, options);
+        if (!resp.ok) {
+          return {
+            status: "error",
+            message: `HTTP Error ${resp.status}`,
+            ok: false,
+          };
         }
+        return await resp.json();
+      } catch (e) {
+        return {
+          status: "error",
+          message: e.message || "Network Timeout/Failure",
+          ok: false,
+        };
+      }
     }
 
     async function apiPost(endpoint, bodyParams) {
-        const body = Object.entries(bodyParams)
-            .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
-        return safeFetch(BASE_URL + '/' + endpoint, {
-            method: 'POST',
-            headers: {
-                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'x-requested-with': 'XMLHttpRequest',
-            },
-            body: body,
-            credentials: 'include',
-        });
+      const body = Object.entries(bodyParams)
+        .map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v))
+        .join("&");
+      return safeFetch(BASE_URL + "/" + endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "x-requested-with": "XMLHttpRequest",
+        },
+        body: body,
+        credentials: "include",
+      });
     }
 
     async function apiGet(endpoint, params) {
-        const qs = Object.entries(params)
-            .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
-        return safeFetch(BASE_URL + '/' + endpoint + '?' + qs, {
-            method: 'GET',
-            credentials: 'include',
-        });
+      const qs = Object.entries(params)
+        .map(([k, v]) => encodeURIComponent(k) + "=" + encodeURIComponent(v))
+        .join("&");
+      return safeFetch(BASE_URL + "/" + endpoint + "?" + qs, {
+        method: "GET",
+        credentials: "include",
+      });
     }
 
     // =========================================================================
     // --- Skill Decision Logic ---
     // =========================================================================
     function decideSkill(meData, teamsData) {
-        let myPlayer = null;
-        Object.values(teamsData.ally.players_by_num).forEach(p => {
-            if (String(p.user_id) === String(getCookie('demon'))) myPlayer = p;
-        });
-        if (!myPlayer) myPlayer = Object.values(teamsData.ally.players_by_num)[0];
+      let myPlayer = null;
+      Object.values(teamsData.ally.players_by_num).forEach((p) => {
+        if (String(p.user_id) === String(getCookie("demon"))) myPlayer = p;
+      });
+      if (!myPlayer) myPlayer = Object.values(teamsData.ally.players_by_num)[0];
 
-        const tokens = meData.tokens;
-        const hpPct = (myPlayer.hp / myPlayer.hp_max) * 100;
+      const tokens = meData.tokens;
+      const resources = meData.advanced_resource;
+      const maxResources = meData.advanced_resource_max;
+      const resourcesName = meData.advanced_resource_name;
+      const hpPct = (myPlayer.hp / myPlayer.hp_max) * 100;
 
-        const chosenSkill = PVP_SKILLS[config.chosenSkillId];
-        const supportSkill = PVP_SKILLS[config.supportSkillId];
-        const basicSkill = PVP_SKILLS[config.basicSkillId] || PVP_SKILLS['0'];
+      const chosenSkill = ALL_SKILLS[config.chosenSkillId];
+      const supportSkill = ALL_SKILLS[config.supportSkillId];
+      const basicSkill = ALL_SKILLS[config.basicSkillId] || ALL_SKILLS["0"];
 
-        if (supportSkill && hpPct <= config.healThreshold) {
-            if (tokens >= supportSkill.cost) {
-                const target = supportSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-                return { id: config.supportSkillId, target, reason: `HP low (${Math.round(hpPct)}%), using support` };
-            } else {
-                const target = basicSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-                return { id: config.basicSkillId, target, reason: `Building tokens for support (${tokens}/${supportSkill.cost})` };
-            }
+      if (supportSkill && hpPct <= config.healThreshold) {
+        if (
+          tokens >= supportSkill.cost &&
+          resources >= supportSkill.resource &&
+          (supportSkill.fullResource ? resources >= maxResources : true)
+        ) {
+          const target =
+            supportSkill.target === "ally_alive" ? myTargetKey : enemyTargetKey;
+          return {
+            id: config.supportSkillId,
+            target,
+            reason: `HP low (${Math.round(hpPct)}%), using support`,
+          };
+        } else {
+          const target =
+            basicSkill.target === "ally_alive" ? myTargetKey : enemyTargetKey;
+          const reason = `Building up resources for support (${resourcesName}: ${resources}/${supportSkill.resource}, tokens: ${tokens}/${supportSkill.cost})`;
+          return { id: config.basicSkillId, target, reason };
         }
+      }
 
-        if (chosenSkill && tokens >= chosenSkill.cost && chosenSkill.cost > 0) {
-            const target = chosenSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-            return { id: config.chosenSkillId, target, reason: `Using ${chosenSkill.name} (${tokens}t)` };
-        }
+      if (
+        chosenSkill &&
+        tokens >= chosenSkill.cost &&
+        resources >= chosenSkill.resource &&
+        (chosenSkill.fullResource ? resources >= maxResources : true)
+      ) {
+        const target =
+          chosenSkill.target === "ally_alive" ? myTargetKey : enemyTargetKey;
+        return {
+          id: config.chosenSkillId,
+          target,
+          reason: `Using ${chosenSkill.name} (${tokens}t, ${resourcesName}: ${resources}/${maxResources})`,
+        };
+      }
 
-        const basicTarget = basicSkill.target === 'ally_alive' ? myTargetKey : enemyTargetKey;
-        return { id: config.basicSkillId, target: basicTarget, reason: `Restoring tokens (${tokens}t)` };
+      const basicTarget =
+        basicSkill.target === "ally_alive" ? myTargetKey : enemyTargetKey;
+      return {
+        id: config.basicSkillId,
+        target: basicTarget,
+        reason: `Restoring tokens (${tokens}t) and resources (${resourcesName}: ${resources}/${maxResources})`,
+      };
     }
 
     // =========================================================================
     // --- Main Loop ---
     // =========================================================================
     async function mainLoop() {
-        abortController = new AbortController();
+      abortController = new AbortController();
 
-        while (isRunning) {
-            try {
-                // ---- Matchmaking / Resumption ----
-                if (!activeMatchState.matchId) {
-                    setStatus('Starting matchmaking...', 'info');
-                    const mmResult = await apiPost('pvp_matchmake.php', { ladder: 'solo' });
-                    
-                    // If the server gives us a match_id, we can proceed even if status is 'error' (e.g. "already in an active match")
-                    if (mmResult.status !== 'success' && !mmResult.match_id) {
-                        const msg = mmResult.message || 'Network failure';
-                        setStatus('Matchmaking failed: ' + msg, 'bad');
-                        
-                        // Check for 'no tokens'/'no energy'
-                        if (msg.toLowerCase().includes('token') || msg.toLowerCase().includes('energy') || msg.toLowerCase().includes('no pvp tokens left')) {
-                            if (config.retryNoTokens) {
-                                appendStatus('Out of Tokens! Retrying in 60s...', 'info');
-                                playErrorBeep();
-                                await sleep(60000);
-                                continue;
-                            } else {
-                                appendStatus('Out of PvP Tokens! Stopping.', 'bad');
-                                playErrorBeep();
-                                document.getElementById('pvp-start-btn').click(); // Turn off visually and logically
-                                break;
-                            }
-                        }
-                        
-                        await sleep(3000);
-                        continue;
-                    }
+      while (isRunning) {
+        try {
+          // ---- Matchmaking / Resumption ----
+          if (!activeMatchState.matchId) {
+            setStatus("Starting matchmaking...", "info");
+            const mmResult = await apiPost("pvp_matchmake.php", {
+              ladder: "solo",
+            });
 
-                    activeMatchState.matchId = mmResult.match_id;
-                    activeMatchState.turnCount = 0;
-                    activeMatchState.skillUsage = {};
-                    await saveActiveMatch();
+            // If the server gives us a match_id, we can proceed even if status is 'error' (e.g. "already in an active match")
+            if (mmResult.status !== "success" && !mmResult.match_id) {
+              const msg = mmResult.message || "Network failure";
+              setStatus("Matchmaking failed: " + msg, "bad");
 
-                    if (mmResult.status !== 'success' || (mmResult.message && mmResult.message.includes('active match'))) {
-                        appendStatus('Rejoining active match #' + activeMatchState.matchId, 'info');
-                    } else {
-                        appendStatus('Match found! #' + activeMatchState.matchId, 'good');
-                    }
+              // Check for 'no tokens'/'no energy'
+              if (
+                msg.toLowerCase().includes("token") ||
+                msg.toLowerCase().includes("energy") ||
+                msg.toLowerCase().includes("no pvp tokens left")
+              ) {
+                if (config.retryNoTokens) {
+                  appendStatus("Out of Tokens! Retrying in 60s...", "info");
+                  playErrorBeep();
+                  await sleep(60000);
+                  continue;
                 } else {
-                    appendStatus('Resuming existing match #' + activeMatchState.matchId, 'info');
+                  appendStatus("Out of PvP Tokens! Stopping.", "bad");
+                  playErrorBeep();
+                  document.getElementById("pvp-start-btn").click(); // Turn off visually and logically
+                  break;
                 }
+              }
 
-                matchId = activeMatchState.matchId;
-                sinceLogId = 0;
-
-                // ---- Initial state poll ----
-                await sleep(1000);
-                const initState = await apiGet('pvp_battle_state.php', { match_id: matchId, since_log_id: sinceLogId });
-                
-                // If the server says the match doesn't exist anymore, reset it
-                if (!initState || (initState.status === 'error' && initState.message && initState.message.includes('not found'))) {
-                    appendStatus('Match expired or not found. Resetting...', 'bad');
-                    activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
-                    await saveActiveMatch();
-                    continue;
-                }
-                
-                if (initState.status === 'error') {
-                    appendStatus('State fetch error, retrying...', 'bad');
-                    await sleep(2000);
-                    continue;
-                }
-
-                sinceLogId = initState.last_log_id || 0;
-                const myUserId = getCookie('demon');
-                myTargetKey = 'ally:' + myUserId;
-
-                const enemyPlayers = initState.teams?.enemy?.players_by_num || {};
-                const firstEnemy = Object.values(enemyPlayers)[0];
-                if (firstEnemy) {
-                    enemyTargetKey = 'enemy:' + firstEnemy.user_id;
-                    appendStatus('vs ' + firstEnemy.username + ' (' + firstEnemy.role + ')', 'info');
-                } else {
-                    appendStatus('Could not find enemy, waiting...', 'bad');
-                }
-
-                // Try setting fast enemy turns
-                await apiPost('pvp_battle_action.php', { match_id: matchId, since_log_id: sinceLogId, action: 'set_solo_control_mode', control_mode: 'fast_enemy' });
-
-                // ---- Combat Loop ----
-                let matchEnded = false;
-
-                while (isRunning && !matchEnded) {
-                    const state = await apiGet('pvp_battle_state.php', { match_id: matchId, since_log_id: sinceLogId });
-                    if (state.status === 'error') {
-                        await sleep(config.pollInterval);
-                        continue;
-                    }
-
-                    sinceLogId = state.last_log_id || sinceLogId;
-
-                    if (state.teams?.ally && state.teams?.enemy) {
-                        const m = Object.values(state.teams.ally.players_by_num).find(p => String(p.user_id) === String(getCookie('demon'))) || Object.values(state.teams.ally.players_by_num)[0];
-                        const e = Object.values(state.teams.enemy.players_by_num)[0];
-                        if (m && e) updateHealthUI(m.hp, m.hp_max, e.hp, e.hp_max);
-                    }
-
-                    const handleMatchEnd = async (endData) => {
-                        matchEnded = true;
-                        playChime();
-                        const result = endData.winner_side === 'ally' ? 'Win' : 'Loss';
-                        setStatus('Match #' + matchId + ' ended: ' + result, result === 'Win' ? 'good' : 'bad');
-                        pushHistory(matchId, result, activeMatchState.turnCount, activeMatchState.skillUsage);
-                        
-                        // Clear active match so we queue next time
-                        activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
-                        await saveActiveMatch();
-                    };
-
-                    if (state.match?.ended) {
-                        await handleMatchEnd(state.match);
-                        break;
-                    }
-
-                    if (!state.turn || state.turn.side !== 'ally') {
-                        await sleep(config.pollInterval);
-                        continue;
-                    }
-
-                    // My Turn
-                    activeMatchState.turnCount++;
-                    const decision = decideSkill(state.me, state.teams);
-
-                    if (!decision.target) {
-                        appendStatus('No valid target, waiting...', 'bad');
-                        await sleep(config.pollInterval);
-                        continue;
-                    }
-
-                    const actionResult = await apiPost('pvp_battle_action.php', { match_id: matchId, since_log_id: sinceLogId, action: 'use_skill', skill_id: decision.id, target_key: decision.target });
-                    
-                    if (actionResult.status !== 'error') {
-                        sinceLogId = actionResult.last_log_id || sinceLogId;
-                        
-                        // Track usage internally
-                        activeMatchState.skillUsage[decision.id] = (activeMatchState.skillUsage[decision.id] || 0) + 1;
-                        sessionStats.globalSkills[decision.id] = (sessionStats.globalSkills[decision.id] || 0) + 1;
-                        saveStats(); // Save async in background
-                        renderGlobalSkills();
-                        await saveActiveMatch();
-
-                        const skillName = PVP_SKILLS[decision.id]?.name || 'Unknown';
-                        appendStatus('T' + activeMatchState.turnCount + ': ' + skillName + ' | ' + decision.reason, 'action');
-
-                        if (actionResult.teams?.enemy) {
-                            const updatedE = Object.values(actionResult.teams.enemy.players_by_num)[0];
-                            if (updatedE) enemyTargetKey = 'enemy:' + updatedE.user_id;
-                        }
-
-                        if (actionResult.match?.ended) {
-                            await handleMatchEnd(actionResult.match);
-                            break;
-                        }
-                    } else {
-                        appendStatus(actionResult.message || 'Action failed', 'bad');
-                    }
-                    await sleep(config.pollInterval);
-                }
-
-                if (!isRunning) break;
-
-                if (config.autoQueue) {
-                    appendStatus('Queuing next match in 3s...', 'info');
-                    await sleep(3000);
-                } else {
-                    setStatus('Auto-queue is off. Stopped.', 'info');
-                    document.getElementById('pvp-start-btn').click();
-                }
-
-            } catch (err) {
-                appendStatus('Loop error: ' + err.message, 'bad');
-                await sleep(3000);
+              await sleep(3000);
+              continue;
             }
+
+            activeMatchState.matchId = mmResult.match_id;
+            activeMatchState.turnCount = 0;
+            activeMatchState.skillUsage = {};
+            await saveActiveMatch();
+
+            if (
+              mmResult.status !== "success" ||
+              (mmResult.message && mmResult.message.includes("active match"))
+            ) {
+              appendStatus(
+                "Rejoining active match #" + activeMatchState.matchId,
+                "info",
+              );
+            } else {
+              appendStatus("Match found! #" + activeMatchState.matchId, "good");
+            }
+          } else {
+            appendStatus(
+              "Resuming existing match #" + activeMatchState.matchId,
+              "info",
+            );
+          }
+
+          matchId = activeMatchState.matchId;
+          sinceLogId = 0;
+
+          // ---- Initial state poll ----
+          await sleep(1000);
+          const initState = await apiGet("pvp_battle_state.php", {
+            match_id: matchId,
+            since_log_id: sinceLogId,
+          });
+
+          // If the server says the match doesn't exist anymore, reset it
+          if (
+            !initState ||
+            (initState.status === "error" &&
+              initState.message &&
+              initState.message.includes("not found"))
+          ) {
+            appendStatus("Match expired or not found. Resetting...", "bad");
+            activeMatchState = { matchId: null, turnCount: 0, skillUsage: {} };
+            await saveActiveMatch();
+            continue;
+          }
+
+          if (initState.status === "error") {
+            appendStatus("State fetch error, retrying...", "bad");
+            await sleep(2000);
+            continue;
+          }
+
+          sinceLogId = initState.last_log_id || 0;
+          const myUserId = getCookie("demon");
+          myTargetKey = "ally:" + myUserId;
+
+          const enemyPlayers = initState.teams?.enemy?.players_by_num || {};
+          const firstEnemy = Object.values(enemyPlayers)[0];
+          if (firstEnemy) {
+            enemyTargetKey = "enemy:" + firstEnemy.user_id;
+            appendStatus(
+              "vs " + firstEnemy.username + " (" + firstEnemy.role + ")",
+              "info",
+            );
+          } else {
+            appendStatus("Could not find enemy, waiting...", "bad");
+          }
+
+          // Try setting fast enemy turns
+          await apiPost("pvp_battle_action.php", {
+            match_id: matchId,
+            since_log_id: sinceLogId,
+            action: "set_solo_control_mode",
+            control_mode: "fast_enemy",
+          });
+
+          // ---- Combat Loop ----
+          let matchEnded = false;
+
+          while (isRunning && !matchEnded) {
+            const state = await apiGet("pvp_battle_state.php", {
+              match_id: matchId,
+              since_log_id: sinceLogId,
+            });
+            if (state.status === "error") {
+              await sleep(config.pollInterval);
+              continue;
+            }
+
+            sinceLogId = state.last_log_id || sinceLogId;
+
+            if (state.teams?.ally && state.teams?.enemy) {
+              const m =
+                Object.values(state.teams.ally.players_by_num).find(
+                  (p) => String(p.user_id) === String(getCookie("demon")),
+                ) || Object.values(state.teams.ally.players_by_num)[0];
+              const e = Object.values(state.teams.enemy.players_by_num)[0];
+              if (m && e) updateHealthUI(m.hp, m.hp_max, e.hp, e.hp_max);
+            }
+
+            const handleMatchEnd = async (endData) => {
+              matchEnded = true;
+              playChime();
+              const result = endData.winner_side === "ally" ? "Win" : "Loss";
+              setStatus(
+                "Match #" + matchId + " ended: " + result,
+                result === "Win" ? "good" : "bad",
+              );
+              pushHistory(
+                matchId,
+                result,
+                activeMatchState.turnCount,
+                activeMatchState.skillUsage,
+              );
+
+              // Clear active match so we queue next time
+              activeMatchState = {
+                matchId: null,
+                turnCount: 0,
+                skillUsage: {},
+              };
+              await saveActiveMatch();
+            };
+
+            if (state.match?.ended) {
+              await handleMatchEnd(state.match);
+              break;
+            }
+
+            if (!state.turn || state.turn.side !== "ally") {
+              await sleep(config.pollInterval);
+              continue;
+            }
+
+            // My Turn
+            activeMatchState.turnCount++;
+            const decision = decideSkill(state.me, state.teams);
+
+            if (!decision.target) {
+              appendStatus("No valid target, waiting...", "bad");
+              await sleep(config.pollInterval);
+              continue;
+            }
+
+            const actionResult = await apiPost("pvp_battle_action.php", {
+              match_id: matchId,
+              since_log_id: sinceLogId,
+              action: "use_skill",
+              skill_id: decision.id,
+              target_key: decision.target,
+            });
+
+            if (actionResult.status !== "error") {
+              sinceLogId = actionResult.last_log_id || sinceLogId;
+
+              // Track usage internally
+              activeMatchState.skillUsage[decision.id] =
+                (activeMatchState.skillUsage[decision.id] || 0) + 1;
+              sessionStats.globalSkills[decision.id] =
+                (sessionStats.globalSkills[decision.id] || 0) + 1;
+              saveStats(); // Save async in background
+              renderGlobalSkills();
+              await saveActiveMatch();
+
+              const skillName = ALL_SKILLS[decision.id]?.name || "Unknown";
+              appendStatus(
+                "T" +
+                  activeMatchState.turnCount +
+                  ": " +
+                  skillName +
+                  " | " +
+                  decision.reason,
+                "action",
+              );
+
+              if (actionResult.teams?.enemy) {
+                const updatedE = Object.values(
+                  actionResult.teams.enemy.players_by_num,
+                )[0];
+                if (updatedE) enemyTargetKey = "enemy:" + updatedE.user_id;
+              }
+
+              if (actionResult.match?.ended) {
+                await handleMatchEnd(actionResult.match);
+                break;
+              }
+            } else {
+              appendStatus(actionResult.message || "Action failed", "bad");
+            }
+            await sleep(config.pollInterval);
+          }
+
+          if (!isRunning) break;
+
+          if (config.autoQueue) {
+            appendStatus("Queuing next match in 3s...", "info");
+            await sleep(3000);
+          } else {
+            setStatus("Auto-queue is off. Stopped.", "info");
+            document.getElementById("pvp-start-btn").click();
+          }
+        } catch (err) {
+          appendStatus("Loop error: " + err.message, "bad");
+          await sleep(3000);
         }
+      }
     }
 
     async function initLockManager() {
-        let warnBox = null;
-        let isStandby = false;
+      let warnBox = null;
+      let isStandby = false;
 
-        async function showStandby() {
-            if (isStandby) return;
-            isStandby = true;
-            document.getElementById('pvp-container')?.remove();
-            isRunning = false; // Gracefully stop mainLoop if running
-            
-            const saved = await GM.getValue("veyra_pvp2_config", null);
-            const tempConfig = { ...DEFAULT_PVP_CONFIG, ...(saved || {}) };
-            if (tempConfig.showStandbyWarning && !warnBox) {
-                warnBox = document.createElement('div');
-                warnBox.innerHTML = `⚠️ <b>AutoPvP 2.0 Standby</b><br>Another tab is active.`;
-                Object.assign(warnBox.style, {
-                    position: 'fixed', top: '10px', right: '10px', background: 'rgba(255,150,0,0.9)', 
-                    color: 'black', padding: '10px', borderRadius: '6px', zIndex: '999999', 
-                    fontFamily: 'monospace', fontSize: '12px', pointerEvents: 'none', boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-                });
-                document.body.appendChild(warnBox);
-            }
+      async function showStandby() {
+        if (isStandby) return;
+        isStandby = true;
+        document.getElementById("pvp-container")?.remove();
+        isRunning = false; // Gracefully stop mainLoop if running
+
+        const saved = await GM.getValue("veyra_pvp2_config", null);
+        const tempConfig = { ...DEFAULT_PVP_CONFIG, ...(saved || {}) };
+        if (tempConfig.showStandbyWarning && !warnBox) {
+          warnBox = document.createElement("div");
+          warnBox.innerHTML = `⚠️ <b>AutoPvP Standby</b><br>Another tab is active.`;
+          Object.assign(warnBox.style, {
+            position: "fixed",
+            top: "10px",
+            right: "10px",
+            background: "rgba(255,150,0,0.9)",
+            color: "black",
+            padding: "10px",
+            borderRadius: "6px",
+            zIndex: "999999",
+            fontFamily: "monospace",
+            fontSize: "12px",
+            pointerEvents: "none",
+            boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
+          });
+          document.body.appendChild(warnBox);
         }
+      }
 
-        function hideStandby() {
-            if (!isStandby) return;
-            isStandby = false;
-            if (warnBox) {
-                warnBox.remove();
-                warnBox = null;
-            }
+      function hideStandby() {
+        if (!isStandby) return;
+        isStandby = false;
+        if (warnBox) {
+          warnBox.remove();
+          warnBox = null;
         }
+      }
 
-        async function checkLock() {
-            let master = await GM.getValue("veyra_pvp2_master", null);
-            if (!master) master = { id: '', time: 0 };
-            const now = Date.now();
+      async function checkLock() {
+        let master = await GM.getValue("veyra_pvp2_master", null);
+        if (!master) master = { id: "", time: 0 };
+        const now = Date.now();
 
-            if (isMaster) {
-                if (master.id !== myTabId && master.id !== '') {
-                    // Lost lock!
-                    isMaster = false;
-                    console.warn("AutoPvP 2.0: Lost master lock! Stepping down to standby.");
-                    showStandby();
-                } else {
-                    // Renew lock
-                    await GM.setValue("veyra_pvp2_master", { id: myTabId, time: now });
-                }
-            } else {
-                // In standby
-                if (now - master.time > 3000 || master.id === myTabId || master.id === '') {
-                    // Claimed lock!
-                    await GM.setValue("veyra_pvp2_master", { id: myTabId, time: now });
-                    isMaster = true;
-                    hideStandby();
-                    
-                    // Boot up app
-                    isRunning = await GM.getValue("veyra_pvp2_running", false);
-                    await setupUI();
-                    if (isRunning) mainLoop();
-                } else {
-                    showStandby();
-                }
-            }
+        if (isMaster) {
+          if (master.id !== myTabId && master.id !== "") {
+            // Lost lock!
+            isMaster = false;
+            console.warn(
+              "AutoPvP: Lost master lock! Stepping down to standby.",
+            );
+            showStandby();
+          } else {
+            // Renew lock
+            await GM.setValue("veyra_pvp2_master", { id: myTabId, time: now });
+          }
+        } else {
+          // In standby
+          if (
+            now - master.time > 3000 ||
+            master.id === myTabId ||
+            master.id === ""
+          ) {
+            // Claimed lock!
+            await GM.setValue("veyra_pvp2_master", { id: myTabId, time: now });
+            isMaster = true;
+            hideStandby();
+
+            // Boot up app
+            isRunning = await GM.getValue("veyra_pvp2_running", false);
+            await setupUI();
+            if (isRunning) mainLoop();
+          } else {
+            showStandby();
+          }
         }
+      }
 
-        await checkLock(); // Initial check
-        setInterval(checkLock, 1000);
+      await checkLock(); // Initial check
+      setInterval(checkLock, 1000);
     }
 
     initLockManager();
-
-    } catch (err) {
-        const errBox = document.createElement('div');
-        Object.assign(errBox.style, {
-            position: 'fixed', top: '10px', left: '10px', background: '#ff3333', 
-            color: 'white', padding: '15px', borderRadius: '8px', zIndex: '9999999', 
-            fontFamily: 'monospace', fontSize: '14px', maxWidth: '80%', boxShadow: '0 4px 10px rgba(0,0,0,0.5)'
-        });
-        errBox.innerHTML = `<b>AutoPvP 2.0 Fatal Crash:</b><br><br>${err.message}<br><br>${err.stack}`;
-        document.body.appendChild(errBox);
-        console.error("AutoPvP 2.0 Error:", err);
-    }
+  } catch (err) {
+    const errBox = document.createElement("div");
+    Object.assign(errBox.style, {
+      position: "fixed",
+      top: "10px",
+      left: "10px",
+      background: "#ff3333",
+      color: "white",
+      padding: "15px",
+      borderRadius: "8px",
+      zIndex: "9999999",
+      fontFamily: "monospace",
+      fontSize: "14px",
+      maxWidth: "80%",
+      boxShadow: "0 4px 10px rgba(0,0,0,0.5)",
+    });
+    errBox.innerHTML = `<b>AutoPvP Fatal Crash:</b><br><br>${err.message}<br><br>${err.stack}`;
+    document.body.appendChild(errBox);
+    console.error("AutoPvP Error:", err);
+  }
 })();
