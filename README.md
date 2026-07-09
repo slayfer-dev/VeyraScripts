@@ -26,12 +26,12 @@
 
 All of the main UserScripts are located in the `src` folder.
 
-| Script Name | Author | Summary | Install Link |
+| Script Name | Author | Collaborators | Summary | Install Link |
 |-------------|--------|---------|--------------|
-| **AutoCastle** | Slayfer | Automates Castle event farming with background execution and custom delays. | [Install AutoCastle](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js) |
-| **AutoFarm** | Slayfer | Automates farming and mob looting with an advanced history tracker. | [Install AutoFarm](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoFarm.user.js) |
-| **AutoPvP** | Slayfer | Automates solo PvP matchmaking with class filters and smart memory loadouts. | [Install AutoPvP](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js) |
-| **GetSkillsData** | Slayfer | Scrapes player combat skills and attributes into a gorgeous floating UI. | [Install GetSkillsData](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/GetSkillsData.user.js) |
+| **AutoCastle** | Slayfer | \[ATOMIC] b07_ark.exe | Automates Castle event farming with background execution and custom delays. | [Install AutoCastle](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js) |
+| **AutoFarm** | Slayfer | \[ATOMIC] b07_ark.exe | Automates farming and mob looting with an advanced history tracker. | [Install AutoFarm](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoFarm.user.js) |
+| **AutoPvP** | Slayfer | \[ATOMIC] b07_ark.exe | Automates solo PvP matchmaking with class filters and smart memory loadouts. | [Install AutoPvP](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoPvP.user.js) |
+| **GetSkillsData** | Slayfer | \[ATOMIC] b07_ark.exe | Scrapes player combat skills and attributes into a gorgeous floating UI. | [Install GetSkillsData](https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/GetSkillsData.user.js) |
 
 ---
 
