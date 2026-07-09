@@ -2,8 +2,8 @@
 // @name         Auto Climb Castle
 // @namespace    http://tampermonkey.net/
 // @version      2.4
-// @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle%202.0.user.js
-// @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle%202.0.user.js
+// @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js
+// @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js
 // @description  A fully rewritten, highly optimized auto-battler for DemonicScans Vampire Castle (Robust DOM Event Targeting).
 // @author       Slayfer
 // @match        *demonicscans.org/occurrence_castle.php?slug=vampire_castle*
