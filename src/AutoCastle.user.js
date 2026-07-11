@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         Auto Climb Castle
+// @name         Auto Climb Castle 2.9
 // @namespace    http://tampermonkey.net/
-// @version      2.4
+// @version      2.8
 // @updateURL    https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js
 // @downloadURL  https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/src/AutoCastle.user.js
-// @description  A fully rewritten, highly optimized auto-battler for DemonicScans Vampire Castle (Robust DOM Event Targeting).
+// @description  A fully rewritten, highly optimized auto-battler for DemonicScans Vampire Castle (Portrait Trial Support added).
 // @author       Slayfer
 // @match        *demonicscans.org/occurrence_castle.php?slug=vampire_castle*
 // @require      https://raw.githubusercontent.com/slayfer-dev/VeyraScripts/refs/heads/main/libs/AntiThrottle.js
@@ -34,6 +34,8 @@
     "Blood Alchemy",
     "Crimson Vitality",
     "Venom Script",
+    "Double Slash",
+    "Stun",
   ];
 
   const DEFAULT_STATE = {
@@ -41,9 +43,11 @@
     attackType: "slash",
     stopsAt: "epic_legendary", // never, legendary, epic_legendary, all
     eventChoice: "random",
-    doorChoice: "random", // Whispering Door
-    shrineChoice: "random", // Shrine of the Last Guest
-    mirrorChoice: "walk", // Cursed Mirror (defaulting to safe)
+    doorChoice: "random",      // Whispering Door
+    shrineChoice: "random",    // Shrine of the Last Guest
+    mirrorChoice: "walk",      // Cursed Mirror (defaulting to safe)
+    merchantChoice: "buy_continue", // Hungry Merchant
+    portraitChoice: "first",   // Portrait Trial
     potionEnabled: false,
     potionThreshold: 35,
     continuousRuns: true,
@@ -132,16 +136,16 @@
   // Helper: Find form by hidden 'choice' input value (Robust DOM targeting)
   function getEventFormByChoice(choiceValue) {
     const input = document.querySelector(
-      `form.event-option-form input[name="choice"][value="${choiceValue}"]`,
+      `form input[name="choice"][value="${choiceValue}"]`,
     );
     return input ? input.closest("form") : null;
   }
 
-  // Helper: Fallback text matcher just in case
+  // Helper: Fallback text matcher for regular buttons
   function getFormByButtonText(text) {
-    const buttons = document.querySelectorAll(".event-actions button.btn");
+    const buttons = document.querySelectorAll(".event-actions button.btn, button, input[type='submit']");
     for (let btn of buttons) {
-      if (btn.innerText.trim().toLowerCase() === text.toLowerCase()) {
+      if ((btn.innerText || btn.value || '').trim().toLowerCase() === text.toLowerCase()) {
         return btn.closest("form") || btn;
       }
     }
@@ -170,7 +174,7 @@
     const header = document.createElement("div");
     header.style.cssText =
       "padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: grab; display: flex; justify-content: space-between; align-items: center; user-select: none;";
-    header.innerHTML = `<h2 style="margin:0; font-size:16px; color:#a8ffca;">AutoCastle 2.3</h2><span style="opacity:0.5">â ¿</span>`;
+    header.innerHTML = `<h2 style="margin:0; font-size:16px; color:#a8ffca;">AutoCastle 2.8</h2><span style="opacity:0.5">⠿</span>`;
 
     // Dragging Logic
     header.addEventListener("pointerdown", (e) => {
@@ -227,6 +231,15 @@
 
             <div style="font-size: 11px; text-transform: uppercase; color: #7ea7ff; letter-spacing: 1px; border-bottom: 1px solid #333; padding-bottom: 4px; margin-top: 8px;">Special Events</div>
             ${createField(
+              "Merchant",
+              `<select id="vc-merchant-choice" style="${selectStyle}">
+                <option value="buy_continue">Buy Potion & Continue</option>
+                <option value="buy_stop">Buy Potion & Stop</option>
+                <option value="skip">Skip Merchant</option>
+                <option value="stop">Stop Auto-Pilot</option>
+            </select>`,
+            )}
+            ${createField(
               "Doors",
               `<select id="vc-door-choice" style="${selectStyle}">
                 <option value="random">Random Door</option>
@@ -250,6 +263,14 @@
                 <option value="walk">Walk Away (Safe)</option>
                 <option value="fight">Fight Reflection</option>
                 <option value="random">Random</option>
+            </select>`,
+            )}
+            ${createField(
+              "Portrait",
+              `<select id="vc-portrait-choice" style="${selectStyle}">
+                <option value="first">First Option</option>
+                <option value="random">Random Option</option>
+                <option value="stop">Stop Auto-Pilot</option>
             </select>`,
             )}
 
@@ -305,7 +326,7 @@
                     <button id="vc-rename-loadout" style="border: 1px solid rgba(255,255,255,0.16); border-radius: 8px; padding: 6px 12px; background: #221b28; color: #fff; cursor: pointer; font-weight:bold;">Rename</button>
                 </div>
             </div>
-            <div id="vc-power-warning" style="font-size:12px; color:#ffcf9e; margin-bottom:15px; display:none;">âš ï¸ Warning: You can only hold 10 powers.</div>
+            <div id="vc-power-warning" style="font-size:12px; color:#ffcf9e; margin-bottom:15px; display:none;">⚠️ Warning: You can only hold 10 powers.</div>
             <div id="vc-priority-container" style="display:grid; gap:8px;"></div>
         `;
     document.body.appendChild(modal);
@@ -355,6 +376,14 @@
     };
     getEl("vc-mirror-choice").onchange = (e) => {
       state.mirrorChoice = e.target.value;
+      saveState();
+    };
+    getEl("vc-merchant-choice").onchange = (e) => {
+      state.merchantChoice = e.target.value;
+      saveState();
+    };
+    getEl("vc-portrait-choice").onchange = (e) => {
+      state.portraitChoice = e.target.value;
       saveState();
     };
 
@@ -425,6 +454,8 @@
     getEl("vc-door-choice").value = state.doorChoice || "random";
     getEl("vc-shrine-choice").value = state.shrineChoice || "random";
     getEl("vc-mirror-choice").value = state.mirrorChoice || "walk";
+    getEl("vc-merchant-choice").value = state.merchantChoice || "buy_continue";
+    getEl("vc-portrait-choice").value = state.portraitChoice || "first";
 
     getEl("vc-potion-enabled").checked = state.potionEnabled;
     getEl("vc-continuous-runs").checked = state.continuousRuns;
@@ -638,8 +669,93 @@
       return;
     }
 
-    // 4. Special Dynamic Events via exact DOM Targeting
-    const isEventActive = document.querySelector(".event-actions");
+    // 4. Special Dynamic Events
+    const isEventActive = document.querySelector(".event-actions") || document.querySelector(".card.castle-event-card");
+
+    // Hungry Merchant
+    const merchantTitle = Array.from(document.querySelectorAll('h2, h3, .event-title')).find(el => el.innerText.includes('Hungry Merchant'));
+    if (merchantTitle) {
+      setStatus("Hungry Merchant Event...");
+
+      const continueForm = getEventFormByChoice("leave") || getFormByButtonText('Continue');
+
+      let potionForm = null;
+      const offers = document.querySelectorAll('form.merchant-offer');
+      for (let offer of offers) {
+          if (offer.innerText.includes('Small Blood Potion')) {
+              potionForm = offer;
+              break;
+          }
+      }
+
+      if (state.merchantChoice === 'buy_stop') {
+          if (potionForm) {
+              stopAuto("Buying Small Blood Potion and stopping...");
+              submitFormThenReload(potionForm);
+              return;
+          } else {
+              stopAuto("Merchant: Potion not found or already bought.");
+              return;
+          }
+      } else if (state.merchantChoice === 'buy_continue') {
+          if (potionForm) {
+              const merchantKey = 'vc_merchant_buy_attempt';
+              let attempts = parseInt(sessionStorage.getItem(merchantKey) || '0');
+              if (attempts > 2) {
+                  sessionStorage.removeItem(merchantKey);
+                  if (continueForm) {
+                      setStatus("Not enough currency. Skipping merchant...");
+                      submitFormThenReload(continueForm);
+                  } else {
+                      stopAuto("Merchant loop detected. Stopped.");
+                  }
+                  return;
+              }
+              sessionStorage.setItem(merchantKey, attempts + 1);
+              submitFormThenReload(potionForm);
+              return;
+          } else if (continueForm) {
+              sessionStorage.removeItem('vc_merchant_buy_attempt');
+              submitFormThenReload(continueForm);
+              return;
+          }
+      } else if (state.merchantChoice === 'skip') {
+          if (continueForm) {
+            submitFormThenReload(continueForm);
+            return;
+          }
+      } else {
+          stopAuto("Merchant found. Waiting for player.");
+          return;
+      }
+    }
+
+    // Portrait Trial
+    const portraitTitle = Array.from(document.querySelectorAll('h2, h3, .event-title')).find(el => el.innerText.includes('Portrait Trial'));
+    if (portraitTitle) {
+        setStatus("Portrait Trial Event...");
+        const optionForms = Array.from(document.querySelectorAll('form.event-option-form'));
+
+        if (optionForms.length > 0) {
+            if (state.portraitChoice === 'stop') {
+                stopAuto("Portrait Trial found. Waiting for player.");
+                return;
+            }
+
+            let targetForm = optionForms[0]; // Default to first option
+
+            if (state.portraitChoice === 'random') {
+                targetForm = optionForms[Math.floor(Math.random() * optionForms.length)];
+            }
+
+            submitFormThenReload(targetForm);
+            return;
+        } else {
+            stopAuto("Portrait Trial: Options not found.");
+            return;
+        }
+    }
+
     if (isEventActive) {
       // Whispering Door
       const blackDoor = getEventFormByChoice("black");
@@ -860,12 +976,18 @@
       const pIdx = loadout.indexOf(powerName);
       if (pIdx === -1) return; // Not in priority list
 
+      // Calculate how many times you explicitly requested this power in your loadout
+      const requestedMaxStack = loadout.filter((p) => p === powerName).length;
+
       const stackMeta = form.querySelector(".power-stack-meta");
       let maxGameStack = 1;
       if (stackMeta) {
         const match = stackMeta.innerText.match(/\/(\d+)/);
         if (match) maxGameStack = parseInt(match[1]);
       }
+
+      // The true maximum stack is whichever number is lower
+      const targetMaxStack = Math.min(maxGameStack, requestedMaxStack);
 
       const samePowersInInv = inventoryPowers.filter(
         (p) => p.name === powerName,
@@ -875,11 +997,14 @@
       let score = 0;
       let replaceTarget = null;
 
-      if (currentCount < maxGameStack) {
+      // A bonus multiplier based on priority order (Slot 1 = +1000, Slot 10 = +100)
+      const priorityBonus = (10 - pIdx) * 100;
+
+      if (currentCount < targetMaxStack) {
         if (isFull) {
           const junk = inventoryPowers.find((p) => !loadout.includes(p.name));
           if (junk) {
-            score = 1000 + offeredRarityVal;
+            score = 10000 + priorityBonus + offeredRarityVal;
             replaceTarget = junk;
           } else {
             const lowestInv = inventoryPowers.reduce((prev, curr) =>
@@ -888,22 +1013,25 @@
                 : prev,
             );
             if (offeredRarityVal > getRarityScore(lowestInv.rarity)) {
-              score = 800 + offeredRarityVal;
+              score = 8000 + priorityBonus + offeredRarityVal;
               replaceTarget = lowestInv;
             }
           }
         } else {
-          score = 1000 + offeredRarityVal;
+          score = 10000 + priorityBonus + offeredRarityVal;
         }
       } else {
-        const lowest = samePowersInInv.reduce((prev, curr) =>
-          getRarityScore(curr.rarity) < getRarityScore(prev.rarity)
-            ? curr
-            : prev,
-        );
-        if (offeredRarityVal > getRarityScore(lowest.rarity)) {
-          score = 500 + offeredRarityVal;
-          replaceTarget = lowest;
+        // We reached our target limit. Only take it if it is an upgrade to an existing stack!
+        if (currentCount > 0) {
+            const lowest = samePowersInInv.reduce((prev, curr) =>
+            getRarityScore(curr.rarity) < getRarityScore(prev.rarity)
+                ? curr
+                : prev,
+            );
+            if (offeredRarityVal > getRarityScore(lowest.rarity)) {
+            score = 5000 + priorityBonus + offeredRarityVal;
+            replaceTarget = lowest;
+            }
         }
       }
 
